@@ -11,6 +11,12 @@ import android.net.Uri
 import android.os.IBinder
 import android.provider.OpenableColumns
 import androidx.core.app.NotificationCompat
+import com.mlapps.mlstems.core.DemucsConfig
+import com.mlapps.mlstems.core.DemucsEngine
+import com.mlapps.mlstems.core.SpleeterEngine
+import com.mlapps.mlstems.core.StemEngine
+import com.mlapps.mlstems.core.StemSink
+import com.mlapps.mlstems.data.Family
 import com.mlapps.mlstems.data.ModelCatalog
 import com.mlapps.mlstems.data.ModelManager
 import com.mlapps.mlstems.data.Project
@@ -81,19 +87,30 @@ class SeparationService : Service() {
             update("Lettura audio", 0f)
             val audio = AudioDecoder.decode(this, uri) { update("Lettura audio", it * 0.1f) }
 
-            val modelFile = ModelManager(this).file(model)
-            val stems = OnnxSeparator(model, modelFile).use { sep ->
-                sep.separate(audio) { update("Separazione", 0.1f + it * 0.8f) }
+            val mm = ModelManager(this)
+            check(mm.isInstalled(model)) { "Modello non installato" }
+            val threads = Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
+            val engine: StemEngine = when (model.family) {
+                Family.DEMUCS -> DemucsEngine(DemucsConfig.load(mm.configFile(model)), threads)
+                Family.SPLEETER4 -> SpleeterEngine(mm.modelsDir, threads)
             }
 
             val id = UUID.randomUUID().toString()
             val dir = repo.dir(id)
-            val tracks = stems.mapIndexed { i, s ->
-                update("Salvataggio", 0.9f + 0.1f * i / stems.size)
-                val name = "stem_$i.wav"
-                Wav.writeStem(dir.resolve(name), s.left, s.right)
-                StemTrack(name = s.name, file = name)
+            val writers = engine.sources.indices.map { StemWriter(dir.resolve("stem_$it.wav"), audio.frames) }
+            try {
+                val sink = object : StemSink {
+                    override fun write(stem: Int, left: FloatArray, right: FloatArray, count: Int) =
+                        writers[stem].write(left, right, count)
+                }
+                engine.separate(audio.left, audio.right, sink) { update("Separazione", 0.1f + it * 0.9f) }
+            } catch (e: Throwable) {
+                writers.forEach { runCatching { it.close() } }
+                repo.delete(id)
+                throw e
             }
+            writers.forEach { it.close() }
+            val tracks = engine.sources.mapIndexed { i, name -> StemTrack(name = stemLabel(name), file = "stem_$i.wav") }
             repo.save(Project(id, title, hash, modelId, tracks, audio.frames * 1000L / SAMPLE_RATE))
             state.value = SeparationStatus.Done(id)
             notifyResult(this, 3, "$title: separazione completata")

@@ -62,7 +62,13 @@ class ModelManager(private val context: Context) {
 
     // ───── stato installazione ─────
 
+    val modelsDir: File get() = dir
+
     fun file(model: StemModel) = File(dir, model.fileName)
+
+    /** File .json con i parametri del modello (solo famiglia Demucs). */
+    fun configFile(model: StemModel): File =
+        if (model.fileName.endsWith(".json")) file(model) else File(dir, model.fileName.substringBeforeLast('.') + ".json")
 
     private fun versionFile(model: StemModel) = File(dir, model.fileName + ".version")
 

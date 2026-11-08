@@ -41,5 +41,6 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation(project(":core"))
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.19.2")
 }

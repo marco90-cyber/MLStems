@@ -49,3 +49,35 @@ object Wav {
         out.write(b)
     }
 }
+
+/** Scrive uno stem su disco man mano che arriva (WAV 16 bit stereo, lunghezza nota in anticipo). */
+class StemWriter(file: File, totalFrames: Int) : AutoCloseable {
+    private val out = BufferedOutputStream(file.outputStream(), 1 shl 16).also {
+        it.write(Wav.header(totalFrames.toLong() * 4))
+    }
+    private var buf = ByteArray(0)
+
+    fun write(left: FloatArray, right: FloatArray, count: Int) {
+        if (buf.size < count * 4) buf = ByteArray(count * 4)
+        for (i in 0 until count) {
+            val l = (left[i] * 32767f).toInt().coerceIn(-32768, 32767)
+            val r = (right[i] * 32767f).toInt().coerceIn(-32768, 32767)
+            buf[i * 4] = l.toByte(); buf[i * 4 + 1] = (l shr 8).toByte()
+            buf[i * 4 + 2] = r.toByte(); buf[i * 4 + 3] = (r shr 8).toByte()
+        }
+        out.write(buf, 0, count * 4)
+    }
+
+    override fun close() = out.close()
+}
+
+/** Nome italiano di uno stem a partire da quello dei modelli. */
+fun stemLabel(source: String) = when (source) {
+    "drums" -> "Batteria"
+    "bass" -> "Basso"
+    "other" -> "Altro"
+    "vocals" -> "Voce"
+    "guitar" -> "Chitarra"
+    "piano" -> "Pianoforte"
+    else -> source.replaceFirstChar { it.uppercase() }
+}
