@@ -39,5 +39,9 @@ jobs:
           ls -la models
           echo "MLSTEMS_MODEL_JSON=$PWD/models/$M.json" >> $GITHUB_ENV
       - name: Test del motore
-        run: gradle :core:test --no-daemon --info -i 2>&1 | grep -E "ROUNDTRIP|SEPARAZIONE|SOMMA|stem |confine|PASSED|FAILED|SKIPPED|errata|non ricostruisce|Exception|error:|e: |BUILD" | head -60
         shell: bash
+        run: |
+          set -o pipefail
+          gradle :core:test --no-daemon -i > test.log 2>&1 || RC=$?
+          grep -E "ROUNDTRIP|SEPARAZIONE|SOMMA|  stem |confine|PASSED|FAILED|SKIPPED|errata|non ricostruisce|Exception|error:|^e: |BUILD" test.log | head -80
+          exit ${RC:-0}
