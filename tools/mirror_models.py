@@ -35,7 +35,21 @@ for m in src["models"]:
         print(f"Scarico {f['source']}")
         req = urllib.request.Request(f["source"], headers={"User-Agent": "MLStems-CI"})
         h = hashlib.sha256(); size = 0
-        with urllib.request.urlopen(req) as r, open(path, "wb") as o:
+        try:
+            r = urllib.request.urlopen(req)
+        except Exception as e:
+            print("  ERRORE", e)
+            parts = f["source"].split("/")
+            if "huggingface.co" in parts[2]:
+                repo_id = parts[3] + "/" + parts[4]
+                try:
+                    api = urllib.request.Request(f"https://huggingface.co/api/models/{repo_id}", headers={"User-Agent": "MLStems-CI"})
+                    info = json.load(urllib.request.urlopen(api))
+                    print("  file nel repository", repo_id, ":", [x["rfilename"] for x in info.get("siblings", [])])
+                except Exception as e2:
+                    print("  elenco non disponibile:", e2)
+            sys.exit(1)
+        with r, open(path, "wb") as o:
             while True:
                 chunk = r.read(1 << 20)
                 if not chunk:
