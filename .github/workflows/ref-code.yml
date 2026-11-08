@@ -5,17 +5,12 @@ jobs:
   show:
     runs-on: ubuntu-latest
     steps:
-      - name: Demucs ONNX host code
-        run: |
-          git clone --depth 1 https://github.com/HRSadeghi/demucs-onnx.git d
-          cd d && find . -name "*.py" -not -path "./.git/*" | head -30
-          for f in $(find python -name "*.py" | head -12); do echo "#### $f"; wc -l $f; done
-      - name: Print core files
-        run: |
-          cd d
-          for f in $(find python -name "*.py" | grep -E "stft|spec|separat|infer|host|runner|apply|core" | head -6); do echo "#### $f"; cat $f; done
-      - name: Spleeter ONNX
+      - name: Spleeter ONNX codice
         run: |
           git clone --depth 1 https://github.com/madewith-bestpractice/spleeter-4stems-onnx.git s
-          cd s && find . -type f -not -path "./.git/*" | head -40
-          echo "#### README"; sed -n 1,200p README.md
+          cd s
+          for f in stft.py separate4.py bands.py; do echo "#### $f"; cat $f; done
+      - name: Demucs overlap
+        run: |
+          git clone --depth 1 https://github.com/HRSadeghi/demucs-onnx.git d
+          echo "#### overlap.py"; cat d/python/demucs_onnx/overlap.py
