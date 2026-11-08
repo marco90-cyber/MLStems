@@ -8,8 +8,11 @@ import com.mlapps.mlstems.data.ModelManager
 import com.mlapps.mlstems.data.Project
 import com.mlapps.mlstems.data.ProjectRepository
 import com.mlapps.mlstems.data.StemModel
+import com.mlapps.mlstems.engine.DownloadService
+import com.mlapps.mlstems.engine.DownloadState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -20,30 +23,45 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val projects = MutableStateFlow(repo.list())
     val installed = MutableStateFlow(models.installedIds())
-    val downloads = MutableStateFlow<Map<String, Float>>(emptyMap())
+    val downloads = DownloadState.downloads   // gestiti da DownloadService: continuano in background
     val message = MutableStateFlow<String?>(null)
+
+    /** Cambia a ogni aggiornamento del catalogo / dei modelli, per far ridisegnare la lista. */
+    val revision = MutableStateFlow(0)
+
+    init {
+        refreshCatalog()
+        viewModelScope.launch {   // quando un download finisce (anche in background) aggiorna la lista
+            DownloadState.tick.collect {
+                installed.value = models.installedIds()
+                revision.update { it + 1 }
+            }
+        }
+        viewModelScope.launch {
+            DownloadState.message.filterNotNull().collect { message.value = it; DownloadState.message.value = null }
+        }
+    }
 
     fun refreshProjects() { projects.value = repo.list() }
 
-    fun download(m: StemModel) = io {
-        try {
-            models.download(m) { p -> downloads.update { it + (m.id to p) } }
-        } catch (e: Exception) {
-            message.value = e.message
-        } finally {
-            downloads.update { it - m.id }
-            installed.value = models.installedIds()
-        }
+    fun refreshCatalog() = io {
+        models.refreshCatalog()
+        installed.value = models.installedIds()
+        revision.update { it + 1 }
     }
+
+    fun download(m: StemModel) = DownloadService.start(getApplication(), m.id)
 
     fun importModel(m: StemModel, uri: Uri) = io {
         try { models.importFrom(m, uri) } catch (e: Exception) { message.value = e.message }
         installed.value = models.installedIds()
+        revision.update { it + 1 }
     }
 
     fun deleteModel(m: StemModel) = io {
         models.delete(m)
         installed.value = models.installedIds()
+        revision.update { it + 1 }
     }
 
     fun deleteProject(p: Project) = io {

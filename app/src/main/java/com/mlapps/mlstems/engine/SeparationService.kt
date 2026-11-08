@@ -61,6 +61,7 @@ class SeparationService : Service() {
     private fun run(uri: Uri, modelId: String) {
         val state = SeparationState.status
         var title = "Brano"
+        val wake = acquireWakeLock(this, "separation")   // CPU attiva anche a schermo spento
         try {
             val model = ModelCatalog.byId(modelId)
             val repo = ProjectRepository(this)
@@ -95,11 +96,14 @@ class SeparationService : Service() {
             }
             repo.save(Project(id, title, hash, modelId, tracks, audio.frames * 1000L / SAMPLE_RATE))
             state.value = SeparationStatus.Done(id)
+            notifyResult(this, 3, "$title: separazione completata")
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Throwable) {
             state.value = SeparationStatus.Error(e.message ?: e.javaClass.simpleName)
+            notifyResult(this, 3, "$title: separazione non riuscita")
         } finally {
+            if (wake.isHeld) wake.release()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }

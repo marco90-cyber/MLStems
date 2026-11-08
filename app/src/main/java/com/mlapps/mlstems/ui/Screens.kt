@@ -126,6 +126,7 @@ fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit, onMo
 fun ModelsScreen(vm: AppViewModel, modifier: Modifier, onBack: () -> Unit) {
     val installed by vm.installed.collectAsState()
     val downloads by vm.downloads.collectAsState()
+    val revision by vm.revision.collectAsState()
     var importing by remember { mutableStateOf<StemModel?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         importing?.let { m -> uri?.let { vm.importModel(m, it) } }
@@ -149,11 +150,18 @@ fun ModelsScreen(vm: AppViewModel, modifier: Modifier, onBack: () -> Unit) {
                             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp),
                         )
                         val p = downloads[m.id]
+                        val downloadable = revision >= 0 && vm.models.isDownloadable(m)
+                        val update = revision >= 0 && vm.models.updateAvailable(m)
                         when {
                             p != null -> LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
-                            m.id in installed -> OutlinedButton(onClick = { vm.deleteModel(m) }) { Text("Elimina") }
+                            m.id in installed -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (update) Button(onClick = { vm.download(m) }) { Text("Aggiorna") }
+                                OutlinedButton(onClick = { vm.deleteModel(m) }) { Text("Elimina") }
+                            }
                             else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { vm.download(m) }, enabled = m.url.isNotBlank()) { Text("Scarica") }
+                                Button(onClick = { vm.download(m) }, enabled = downloadable) {
+                                    Text(if (downloadable) "Scarica" else "Non ancora disponibile")
+                                }
                                 FilledTonalButton(onClick = { importing = m; picker.launch(arrayOf("*/*")) }) { Text("Importa file") }
                             }
                         }

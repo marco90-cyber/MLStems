@@ -23,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.padding
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mlapps.mlstems.engine.SeparationService
+import com.mlapps.mlstems.engine.SeparationState
+import com.mlapps.mlstems.engine.SeparationStatus
 import com.mlapps.mlstems.ui.AppViewModel
 import com.mlapps.mlstems.ui.HomeScreen
 import com.mlapps.mlstems.ui.MixerScreen
@@ -55,6 +57,10 @@ fun App(vm: AppViewModel = viewModel()) {
     val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+    LaunchedEffect(Unit) {   // riaprendo l'app durante un'elaborazione, torna alla schermata di avanzamento
+        vm.refreshProjects()
+        if (SeparationState.status.value is SeparationStatus.Running) screen = Screen.Processing
     }
     LaunchedEffect(message) {
         message?.let { snackbar.showSnackbar(it); vm.message.value = null }

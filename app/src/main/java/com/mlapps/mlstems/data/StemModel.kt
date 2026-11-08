@@ -3,7 +3,7 @@ package com.mlapps.mlstems.data
 /**
  * Descrizione di un modello di separazione.
  * speed / quality: da 1 (peggiore) a 5 (migliore), usati nella lista di scelta.
- * url: da impostare con l'hosting dei file .onnx (es. release GitHub). Vuoto = solo import da file.
+ * I file da scaricare (indirizzi, checksum, versione) stanno in models.json nel repository.
  */
 data class StemModel(
     val id: String,
@@ -14,7 +14,6 @@ data class StemModel(
     val speed: Int,
     val quality: Int,
     val fileName: String,
-    val url: String = "",
     val segmentSamples: Int = 343_980,   // lunghezza blocco (htdemucs: 7,8 s a 44,1 kHz)
     val overlap: Float = 0.25f,
     val normalize: Boolean = true,

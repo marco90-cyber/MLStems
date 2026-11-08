@@ -1,0 +1,14 @@
+{
+  "models": [
+    {
+      "id": "htdemucs",
+      "version": 1,
+      "files": [
+        {
+          "name": "htdemucs.onnx",
+          "source": "https://huggingface.co/kickvn/htdemucs-onnx/resolve/main/htdemucs_fp16.onnx"
+        }
+      ]
+    }
+  ]
+}
