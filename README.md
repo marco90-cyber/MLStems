@@ -3,8 +3,8 @@
 App Android per separare un brano in stem (voce, batteria, basso, altro, chitarra, pianoforte), tutto offline.
 
 ## Cosa c'è
-- Catalogo modelli dal più veloce al più qualitativo (`data/StemModel.kt`), con download dentro l'app o import da file.
-- Motore ONNX Runtime a blocchi con sovrapposizione (`engine/StemSeparator.kt`), in un foreground service (`SeparationService`).
+- Catalogo modelli dal più veloce al più qualitativo (`data/StemModel.kt`), con download dentro l'app (servizio in background) o import da file.
+- Motori Demucs e Spleeter nel modulo `core` (con test su CI), in un foreground service (`SeparationService`).
 - Progetti salvati su disco (cartella con `project.json` + WAV per stem). Il brano originale è riconosciuto via SHA-256: se è già stato elaborato con lo stesso modello il progetto si riapre subito.
 - Mixer/player a più tracce con volume, mute, solo (`player/MultiStemPlayer.kt`).
 - Esportazione mix e stem in `Download/MLStems`.
@@ -15,13 +15,14 @@ App Android per separare un brano in stem (voce, batteria, basso, altro, chitarr
 - **GitHub Actions**: ogni push su `main` compila l'APK di debug (scarica `MLStems-debug-apk` dagli artifact).
   Con un tag `v*` (es. `v0.1`) l'APK viene anche allegato alla release.
 
-## Da fare prima del primo avvio
-1. **Modelli ONNX**: il codice assume modelli con forma d'onda in ingresso e in uscita
-   (`[1,2,N]` → `[1,stem,2,N]`, STFT dentro il grafo). Va preparata l'esportazione dei modelli
-   (Demucs ha una STFT che l'export ONNX standard non include) oppure scritto un adattatore per modello
-   che implementi `StemSeparator` (Spleeter e MDX-Net lavorano su spettrogrammi).
-2. **URL di download**: compilare `url` nel catalogo (es. release GitHub) e verificare licenze dei pesi.
-3. Dettagli sui modelli in `docs/MODELLI.md`.
+## Provarla
+1. Installa l'APK dalla pagina **Releases** (o dagli artifact di Actions).
+2. Apri **Modelli** (icona in alto) e scarica un modello. Il download continua anche a schermo spento.
+3. **Nuovo brano** → scegli il file → scegli il modello → Avvia. Puoi spegnere lo schermo: arriva una notifica a fine lavoro.
+4. Nel mixer: volume, mute (M), solo (S) per ogni stem; export di mix o stem in `Download/MLStems`.
+
+Tempi indicativi su un PC da CI (4 thread) per 15 s di audio: Spleeter 2,5 s, HT-Demucs 7,5 s, 6 stem 10 s, Fine-Tuned 40 s.
+Su telefono aspettati tempi più lunghi (non ancora misurati). Dettagli in `docs/MODELLI.md`.
 
 ## Idee successive
 - Stem salvati in FLAC invece di WAV (meno spazio: 6 stem WAV di 4 minuti ≈ 250 MB).
