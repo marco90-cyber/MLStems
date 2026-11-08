@@ -15,6 +15,20 @@
       ]
     },
     {
+      "id": "htdemucs-int8",
+      "version": 1,
+      "files": [
+        {
+          "name": "htdemucs_int8.onnx",
+          "source": "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_int8.onnx"
+        },
+        {
+          "name": "htdemucs_int8.json",
+          "source": "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_int8.json"
+        }
+      ]
+    },
+    {
       "id": "htdemucs-6s",
       "version": 1,
       "files": [

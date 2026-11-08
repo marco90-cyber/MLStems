@@ -38,6 +38,13 @@ object ModelCatalog {
             fileName = "htdemucs.onnx", family = Family.DEMUCS,
         ),
         StemModel(
+            id = "htdemucs-int8", name = "HT-Demucs 4 stem (int8)",
+            description = "Versione compressa di HT-Demucs: file più leggero, pensata per la CPU.",
+            stems = listOf("Batteria", "Basso", "Altro", "Voce"),
+            sizeMb = 84, speed = 3, quality = 4,
+            fileName = "htdemucs_int8.onnx", family = Family.DEMUCS,
+        ),
+        StemModel(
             id = "htdemucs-6s", name = "HT-Demucs 6 stem",
             description = "Aggiunge chitarra e pianoforte. Un po' più lento.",
             stems = listOf("Batteria", "Basso", "Altro", "Voce", "Chitarra", "Pianoforte"),

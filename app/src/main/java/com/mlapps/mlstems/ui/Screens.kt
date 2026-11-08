@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,6 +23,14 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height as hgt
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,6 +44,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -71,7 +81,7 @@ import kotlinx.coroutines.withContext
 @Composable
 private fun Bar(title: String, onBack: (() -> Unit)?, actions: @Composable () -> Unit = {}) {
     TopAppBar(
-        title = { Text(title) },
+        title = { Text(title, style = MaterialTheme.typography.titleLarge) },
         navigationIcon = {
             if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro") }
         },
@@ -101,21 +111,41 @@ fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit, onMo
             IconButton(onClick = onModels) { Icon(Icons.Default.Settings, "Modelli") }
         }
         if (projects.isEmpty()) {
-            Text(
-                "Nessun brano elaborato.\nTocca “Nuovo brano” per separare le tracce.",
-                Modifier.padding(24.dp), style = MaterialTheme.typography.bodyLarge,
-            )
+            Column(Modifier.fillMaxWidth().padding(32.dp).weight(1f), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    listOf("Voce", "Batteria", "Basso", "Chitarra", "Pianoforte", "Altro").forEachIndexed { i, n ->
+                        androidx.compose.foundation.layout.Box(
+                            Modifier.width(10.dp).hgt(listOf(36, 64, 48, 72, 44, 56)[i].dp)
+                                .background(stemColor(n), androidx.compose.foundation.shape.RoundedCornerShape(50)),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+                Text("Nessun brano ancora", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    "Tocca “Nuovo brano” per separare voce, batteria, basso e altro.",
+                    Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
         }
         LazyColumn(Modifier.weight(1f), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(projects, key = { it.id }) { p ->
-                Card(onClick = { onOpen(p.id) }, Modifier.fillMaxWidth()) {
+                Card(
+                    onClick = { onOpen(p.id) }, Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                ) {
                     Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(p.title, style = MaterialTheme.typography.titleMedium)
+                            Text(p.title, style = MaterialTheme.typography.titleMedium, maxLines = 1)
                             Text(
-                                "${ModelCatalog.all.firstOrNull { it.id == p.modelId }?.name ?: p.modelId} · ${p.stems.size} stem · ${fmt(p.durationMs)}",
-                                style = MaterialTheme.typography.bodySmall,
+                                "${ModelCatalog.all.firstOrNull { it.id == p.modelId }?.name ?: p.modelId} · ${fmt(p.durationMs)}",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                p.stems.forEach { androidx.compose.foundation.layout.Box(
+                                    Modifier.width(22.dp).hgt(6.dp).background(stemColor(it.name), androidx.compose.foundation.shape.RoundedCornerShape(50))) }
+                            }
                         }
                         IconButton(onClick = { vm.deleteProject(p) }) { Icon(Icons.Default.Delete, "Elimina") }
                     }
@@ -152,14 +182,20 @@ fun ModelsScreen(vm: AppViewModel, modifier: Modifier, onBack: () -> Unit) {
         )
         LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(ModelCatalog.all, key = { it.id }) { m ->
-                Card(Modifier.fillMaxWidth()) {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                     Column(Modifier.padding(16.dp)) {
-                        Text(m.name, style = MaterialTheme.typography.titleMedium)
-                        Text(m.description, style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            "${m.stems.size} stem · ~${m.sizeMb} MB\nVelocità ${"●".repeat(m.speed)}${"○".repeat(5 - m.speed)}   Qualità ${"●".repeat(m.quality)}${"○".repeat(5 - m.quality)}",
-                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp),
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(m.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                            if (m.id in installed) Pill("Installato")
+                        }
+                        Text(m.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Pill("${m.stems.size} stem"); Pill("~${m.sizeMb} MB")
+                        }
+                        Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Meter("Velocità", m.speed, color = MaterialTheme.colorScheme.tertiary)
+                            Meter("Qualità", m.quality)
+                        }
                         val p = downloads[m.id]
                         val downloadable = revision >= 0 && vm.models.isDownloadable(m)
                         val update = revision >= 0 && vm.models.updateAvailable(m)
@@ -230,9 +266,9 @@ fun ProcessingScreen(modifier: Modifier, onDone: (String) -> Unit, onClose: () -
     Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         when (val s = status) {
             is SeparationStatus.Running -> {
-                CircularProgressIndicator()
-                Text(s.title, Modifier.padding(top = 16.dp), style = MaterialTheme.typography.titleMedium)
-                Text("${s.stage} · ${(s.progress * 100).toInt()}%")
+                Text("${(s.progress * 100).toInt()}%", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.primary)
+                Text(s.title, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                Text(s.stage, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 LinearProgressIndicator(progress = { s.progress }, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp))
                 Text("Puoi spegnere lo schermo: l'elaborazione continua.", style = MaterialTheme.typography.bodySmall)
                 OutlinedButton(onClick = { SeparationService.cancel(ctx); onClose() }, modifier = Modifier.padding(top = 16.dp)) { Text("Annulla") }
@@ -275,11 +311,14 @@ fun MixerScreen(vm: AppViewModel, projectId: String, modifier: Modifier, onBack:
         Bar(project.title, onBack)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             tracks.forEachIndexed { i, t ->
-                Card(Modifier.fillMaxWidth()) {
+                val c = stemColor(t.name)
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                  Row(Modifier.height(IntrinsicSize.Min)) {
+                    ColorStripe(c)
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(t.name, style = MaterialTheme.typography.titleSmall)
-                            Slider(value = t.volume, onValueChange = { v ->
+                            Slider(colors = SliderDefaults.colors(thumbColor = c, activeTrackColor = c), value = t.volume, onValueChange = { v ->
                                 player.gains[i] = v
                                 tracks = tracks.toMutableList().also { it[i] = t.copy(volume = v) }
                             }, valueRange = 0f..1.5f)
@@ -293,6 +332,7 @@ fun MixerScreen(vm: AppViewModel, projectId: String, modifier: Modifier, onBack:
                             tracks = tracks.toMutableList().also { it[i] = t.copy(solo = c) }
                         }) { Text("S") }
                     }
+                  }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -313,16 +353,18 @@ fun MixerScreen(vm: AppViewModel, projectId: String, modifier: Modifier, onBack:
             }
         }
         // trasporto
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Surface(tonalElevation = 3.dp, shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) {
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
             Slider(value = pos.toFloat(), onValueChange = { player.seekTo(it.toLong()); pos = it.toLong() },
                 valueRange = 0f..player.durationMs.toFloat().coerceAtLeast(1f))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(fmt(pos), Modifier.weight(1f))
-                IconButton(onClick = { if (playing) player.pause() else player.play() }) {
+                FilledIconButton(onClick = { if (playing) player.pause() else player.play() }, modifier = Modifier.size(56.dp)) {
                     Icon(if (playing) PauseIcon else Icons.Default.PlayArrow, if (playing) "Pausa" else "Riproduci")
                 }
                 Text(fmt(player.durationMs), Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
             }
+        }
         }
     }
 }
