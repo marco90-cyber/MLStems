@@ -33,8 +33,8 @@ object ModelCatalog {
             id = "spleeter-4", name = "Spleeter 4 stem",
             description = "Veloce. Voce, batteria, basso, altro.",
             stems = listOf("Voce", "Batteria", "Basso", "Altro"),
-            sizeMb = 80, speed = 4, quality = 2,
-            fileName = "spleeter4.onnx", segmentSamples = 441_000,
+            sizeMb = 79, speed = 4, quality = 2,
+            fileName = "spleeter4_vocals.onnx", segmentSamples = 441_000,
         ),
         StemModel(
             id = "mdx-net", name = "MDX-Net",
@@ -47,22 +47,22 @@ object ModelCatalog {
             id = "htdemucs", name = "HT-Demucs 4 stem",
             description = "Alta qualità. Batteria, basso, altro, voce.",
             stems = listOf("Batteria", "Basso", "Altro", "Voce"),
-            sizeMb = 80, speed = 2, quality = 4,
+            sizeMb = 91, speed = 2, quality = 4,
             fileName = "htdemucs.onnx",
         ),
         StemModel(
             id = "htdemucs-6s", name = "HT-Demucs 6 stem",
             description = "Aggiunge chitarra e pianoforte. Più lento.",
             stems = listOf("Batteria", "Basso", "Altro", "Voce", "Chitarra", "Pianoforte"),
-            sizeMb = 55, speed = 2, quality = 4,
+            sizeMb = 110, speed = 2, quality = 4,
             fileName = "htdemucs_6s.onnx",
         ),
         StemModel(
             id = "htdemucs-ft", name = "HT-Demucs Fine-Tuned",
             description = "Qualità massima. Il più pesante e lento.",
             stems = listOf("Batteria", "Basso", "Altro", "Voce"),
-            sizeMb = 320, speed = 1, quality = 5,
-            fileName = "htdemucs_ft.onnx",
+            sizeMb = 675, speed = 1, quality = 5,
+            fileName = "htdemucs_ft.json",
         ),
     )
 

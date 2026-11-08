@@ -56,7 +56,10 @@ for m in src["models"]:
                     break
                 o.write(chunk); h.update(chunk); size += len(chunk)
         print(f"  {f['name']}: {size} byte, sha256 {h.hexdigest()}")
-        inspect(path)
+        if f['name'].endswith('.json'):
+            print('  contenuto:', open(path).read()[:1500])
+        else:
+            inspect(path)
         paths.append(path)
         files.append({
             "name": f["name"], "sha256": h.hexdigest(), "size": size,

@@ -7,7 +7,121 @@
         {
           "name": "htdemucs.onnx",
           "urls": [
-            "https://huggingface.co/kickvn/htdemucs-onnx/resolve/main/htdemucs_fp16.onnx"
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_fp16.onnx"
+          ]
+        },
+        {
+          "name": "htdemucs.json",
+          "urls": [
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_fp16.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "htdemucs-6s",
+      "version": 1,
+      "files": [
+        {
+          "name": "htdemucs_6s.onnx",
+          "urls": [
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_6s.onnx"
+          ]
+        },
+        {
+          "name": "htdemucs_6s.json",
+          "urls": [
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_6s.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "htdemucs-ft",
+      "version": 1,
+      "files": [
+        {
+          "name": "htdemucs_ft.json",
+          "urls": [
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft.json"
+          ]
+        },
+        {
+          "name": "htdemucs_ft_0.onnx",
+          "urls": [
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_0.onnx"
+          ]
+        },
+        {
+          "name": "htdemucs_ft_0.json",
+          "urls": [
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_0.json"
+          ]
+        },
+        {
+          "name": "htdemucs_ft_1.onnx",
+          "urls": [
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_1.onnx"
+          ]
+        },
+        {
+          "name": "htdemucs_ft_1.json",
+          "urls": [
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_1.json"
+          ]
+        },
+        {
+          "name": "htdemucs_ft_2.onnx",
+          "urls": [
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_2.onnx"
+          ]
+        },
+        {
+          "name": "htdemucs_ft_2.json",
+          "urls": [
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_2.json"
+          ]
+        },
+        {
+          "name": "htdemucs_ft_3.onnx",
+          "urls": [
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_3.onnx"
+          ]
+        },
+        {
+          "name": "htdemucs_ft_3.json",
+          "urls": [
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_3.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "spleeter-4",
+      "version": 1,
+      "files": [
+        {
+          "name": "spleeter4_vocals.onnx",
+          "urls": [
+            "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/main/vocals.fp16.onnx"
+          ]
+        },
+        {
+          "name": "spleeter4_drums.onnx",
+          "urls": [
+            "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/main/drums.fp16.onnx"
+          ]
+        },
+        {
+          "name": "spleeter4_bass.onnx",
+          "urls": [
+            "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/main/bass.fp16.onnx"
+          ]
+        },
+        {
+          "name": "spleeter4_other.onnx",
+          "urls": [
+            "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/main/other.fp16.onnx"
           ]
         }
       ]
