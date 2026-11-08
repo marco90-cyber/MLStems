@@ -5,6 +5,8 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
+import com.mlapps.mlstems.core.FlacEncoder
+import com.mlapps.mlstems.engine.SAMPLE_RATE
 import com.mlapps.mlstems.engine.Wav
 import java.io.File
 import java.io.RandomAccessFile
@@ -12,10 +14,10 @@ import java.io.RandomAccessFile
 /** Esporta in Download/MLStems (MediaStore, nessun permesso richiesto da Android 10). */
 object Exporter {
 
-    private fun create(ctx: Context, name: String): Pair<Uri, java.io.OutputStream> {
+    private fun create(ctx: Context, name: String, ext: String = "flac"): Pair<Uri, java.io.OutputStream> {
         val values = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, "$name.wav")
-            put(MediaStore.Downloads.MIME_TYPE, "audio/x-wav")
+            put(MediaStore.Downloads.DISPLAY_NAME, "$name.$ext")
+            put(MediaStore.Downloads.MIME_TYPE, if (ext == "wav") "audio/x-wav" else "audio/flac")
             put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/MLStems")
         }
         val uri = ctx.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)!!
@@ -23,7 +25,7 @@ object Exporter {
     }
 
     fun exportStem(ctx: Context, title: String, stemName: String, file: File) {
-        val (_, out) = create(ctx, "$title - $stemName")
+        val (_, out) = create(ctx, "$title - $stemName", file.extension.lowercase())
         out.use { o -> file.inputStream().use { it.copyTo(o) } }
     }
 
@@ -33,12 +35,12 @@ object Exporter {
         try {
             val total = (raf[0].length() - Wav.HEADER) / 4
             val (_, out) = create(ctx, "$title - mix")
-            out.use { o ->
-                o.write(Wav.header(total * 4))
+            FlacEncoder(java.io.BufferedOutputStream(out, 1 shl 16), SAMPLE_RATE, total).use { enc ->
                 val block = 4096
                 val bytes = ByteArray(block * 4)
                 val mix = FloatArray(block * 2)
-                val pcm = ShortArray(block * 2)
+                val pl = ShortArray(block)
+                val pr = ShortArray(block)
                 val anySolo = solo.any { it }
                 var frame = 0L
                 while (frame < total) {
@@ -53,8 +55,11 @@ object Exporter {
                             mix[k] += s * gains[i]
                         }
                     }
-                    for (k in 0 until frames * 2) pcm[k] = mix[k].coerceIn(-32768f, 32767f).toInt().toShort()
-                    Wav.writeShortsLE(o, pcm, frames * 2)
+                    for (k in 0 until frames) {
+                        pl[k] = mix[2 * k].coerceIn(-32768f, 32767f).toInt().toShort()
+                        pr[k] = mix[2 * k + 1].coerceIn(-32768f, 32767f).toInt().toShort()
+                    }
+                    enc.write(pl, pr, frames)
                     frame += frames
                 }
             }

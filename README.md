@@ -5,7 +5,7 @@ App Android per separare un brano in stem (voce, batteria, basso, altro, chitarr
 ## Cosa c'è
 - Catalogo modelli dal più veloce al più qualitativo (`data/StemModel.kt`), con download dentro l'app (servizio in background) o import da file.
 - Motori Demucs e Spleeter nel modulo `core` (con test su CI), in un foreground service (`SeparationService`).
-- Progetti salvati su disco (cartella con `project.json` + WAV per stem). Il brano originale è riconosciuto via SHA-256: se è già stato elaborato con lo stesso modello il progetto si riapre subito.
+- Progetti salvati su disco (cartella con `project.json` + FLAC per stem). Il brano originale è riconosciuto via SHA-256: se è già stato elaborato con lo stesso modello il progetto si riapre subito.
 - Mixer/player a più tracce con volume, mute, solo (`player/MultiStemPlayer.kt`).
 - Esportazione mix e stem in `Download/MLStems`.
 - UI Compose con Material You, solo schermate base.
@@ -25,7 +25,6 @@ Tempi indicativi su un PC da CI (4 thread) per 15 s di audio: Spleeter 2,5 s, HT
 Su telefono aspettati tempi più lunghi (non ancora misurati). Dettagli in `docs/MODELLI.md`.
 
 ## Idee successive
-- Stem salvati in FLAC invece di WAV (meno spazio: 6 stem WAV di 4 minuti ≈ 250 MB).
 - Esecuzione con NNAPI/GPU, scelta del numero di thread.
 - Playback in background con notifica media, loop A-B, velocità/tonalità.
 - Tema condiviso MLTheme al posto di `Theme.kt`.

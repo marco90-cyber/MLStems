@@ -97,7 +97,7 @@ class SeparationService : Service() {
 
             val id = UUID.randomUUID().toString()
             val dir = repo.dir(id)
-            val writers = engine.sources.indices.map { StemWriter(dir.resolve("stem_$it.wav"), audio.frames) }
+            val writers = engine.sources.indices.map { StemWriter(dir.resolve("stem_$it.flac"), audio.frames) }
             try {
                 val sink = object : StemSink {
                     override fun write(stem: Int, left: FloatArray, right: FloatArray, count: Int) =
@@ -110,7 +110,7 @@ class SeparationService : Service() {
                 throw e
             }
             writers.forEach { it.close() }
-            val tracks = engine.sources.mapIndexed { i, name -> StemTrack(name = stemLabel(name), file = "stem_$i.wav") }
+            val tracks = engine.sources.mapIndexed { i, name -> StemTrack(name = stemLabel(name), file = "stem_$i.flac") }
             repo.save(Project(id, title, hash, modelId, tracks, audio.frames * 1000L / SAMPLE_RATE))
             state.value = SeparationStatus.Done(id)
             notifyResult(this, 3, "$title: separazione completata")

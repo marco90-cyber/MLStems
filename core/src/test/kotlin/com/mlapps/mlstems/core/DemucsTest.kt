@@ -96,4 +96,33 @@ class DemucsTest {
         if (dir == null) { println("SKIP spleeter: MLSTEMS_SPLEETER_DIR non impostata"); return }
         check(SpleeterEngine(File(dir), threads = 4), "spleeter4", 60.0)
     }
+
+    @Test
+    fun flacRoundTrip() {
+        val ffmpeg = listOf("/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg").firstOrNull { File(it).exists() }
+        if (ffmpeg == null) { println("SKIP flac: ffmpeg assente"); return }
+        val n = 44_100 * 3 + 1234                      // coda più corta di un blocco
+        val rnd = Random(7)
+        val l = ShortArray(n) { i ->
+            if (i in 50_000..60_000) 0
+            else (9000 * sin(2 * PI * 330 * i / 44100.0) + rnd.nextInt(-300, 300)).toInt().toShort()
+        }
+        val r = ShortArray(n) { i -> if (i in 100_000..101_000) Short.MAX_VALUE else (l[i] * 0.6 + rnd.nextInt(-50, 50)).toInt().toShort() }
+        val f = File.createTempFile("t", ".flac")
+        FlacEncoder(f.outputStream().buffered(), 44100, n.toLong()).use { e ->
+            e.write(l, r, 70_000); e.write(l.copyOfRange(70_000, n), r.copyOfRange(70_000, n), n - 70_000)
+        }
+        val raw = File.createTempFile("t", ".raw")
+        val pr = ProcessBuilder(ffmpeg, "-y", "-v", "error", "-i", f.path, "-f", "s16le", "-acodec", "pcm_s16le", raw.path).redirectErrorStream(true).start()
+        val log = pr.inputStream.bufferedReader().readText()
+        check(pr.waitFor() == 0 && log.isBlank()) { "ffmpeg: $log" }
+        val b = raw.readBytes()
+        check(b.size == n * 4) { "lunghezza ${b.size} invece di ${n * 4}" }
+        for (i in 0 until n) {
+            val a = (b[4 * i].toInt() and 0xFF) or (b[4 * i + 1].toInt() shl 8)
+            val c = (b[4 * i + 2].toInt() and 0xFF) or (b[4 * i + 3].toInt() shl 8)
+            check(a.toShort() == l[i] && c.toShort() == r[i]) { "campione $i diverso" }
+        }
+        println("FLAC ok: ${f.length()} byte contro ${n * 4} (${100 * f.length() / (n * 4)}%)")
+    }
 }

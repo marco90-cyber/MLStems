@@ -26,8 +26,8 @@ data class Project(
     val createdAt: Long = System.currentTimeMillis(),
 )
 
-/** Ogni progetto è una cartella: project.json + un WAV per ogni stem. */
-class ProjectRepository(context: Context) {
+/** Ogni progetto è una cartella: project.json + un FLAC per ogni stem. */
+class ProjectRepository(private val context: Context) {
 
     private val root = File(context.filesDir, "projects").apply { mkdirs() }
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
@@ -51,5 +51,6 @@ class ProjectRepository(context: Context) {
 
     fun delete(id: String) {
         dir(id).deleteRecursively()
+        com.mlapps.mlstems.engine.StemCache.clear(context, id)
     }
 }

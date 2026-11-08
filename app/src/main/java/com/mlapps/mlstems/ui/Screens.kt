@@ -288,9 +288,32 @@ fun ProcessingScreen(modifier: Modifier, onDone: (String) -> Unit, onClose: () -
 @Composable
 fun MixerScreen(vm: AppViewModel, projectId: String, modifier: Modifier, onBack: () -> Unit) {
     val ctx = LocalContext.current
+    val project = remember(projectId) { vm.repo.load(projectId) }
+    val stemFiles = remember(projectId) { project.stems.map { vm.repo.dir(projectId).resolve(it.file) } }
+    var wavs by remember(projectId) { mutableStateOf<List<java.io.File>?>(null) }
+    var prep by remember(projectId) { mutableStateOf(0f) }
+    LaunchedEffect(projectId) {
+        wavs = withContext(Dispatchers.IO) {
+            stemFiles.mapIndexed { i, f ->
+                com.mlapps.mlstems.engine.StemCache.wavFor(ctx, projectId, f) { prep = (i + it) / stemFiles.size }
+            }
+        }
+    }
+    val ready = wavs
+    if (ready == null) {
+        Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator()
+            Text("Preparo le tracce per l'ascolto…", Modifier.padding(top = 16.dp))
+            LinearProgressIndicator(progress = { prep }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+        }
+    } else MixerContent(vm, projectId, ready, stemFiles, modifier, onBack)
+}
+
+@Composable
+private fun MixerContent(vm: AppViewModel, projectId: String, files: List<java.io.File>, stemFiles: List<java.io.File>, modifier: Modifier, onBack: () -> Unit) {
+    val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val project = remember(projectId) { vm.repo.load(projectId) }
-    val files = remember(projectId) { project.stems.map { vm.repo.dir(projectId).resolve(it.file) } }
     val player = remember(projectId) {
         MultiStemPlayer(files).also { p ->
             project.stems.forEachIndexed { i, t -> p.gains[i] = t.volume; p.muted[i] = t.muted; p.solo[i] = t.solo }
@@ -346,7 +369,7 @@ fun MixerScreen(vm: AppViewModel, projectId: String, modifier: Modifier, onBack:
                 OutlinedButton(enabled = !exporting, onClick = {
                     exporting = true
                     scope.launch(Dispatchers.IO) {
-                        tracks.forEachIndexed { i, t -> Exporter.exportStem(ctx, project.title, t.name, files[i]) }
+                        tracks.forEachIndexed { i, t -> Exporter.exportStem(ctx, project.title, t.name, stemFiles[i]) }
                         withContext(Dispatchers.Main) { exporting = false; vm.message.value = "Stem salvati in Download/MLStems" }
                     }
                 }) { Text("Esporta stem") }
