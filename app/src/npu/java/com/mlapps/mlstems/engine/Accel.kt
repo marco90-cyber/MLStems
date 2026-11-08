@@ -11,9 +11,8 @@ object Accel {
     fun configure(context: Context, options: OrtSession.SessionOptions) {
         // il DSP cerca le librerie "Skel" in questo percorso
         Os.setenv("ADSP_LIBRARY_PATH", context.applicationInfo.nativeLibraryDir, true)
-        options.addFreeDimensionOverrideByName("num_splits", 1)   // QNN non accetta forme dinamiche
-        options.addExecutionProvider(
-            "QNN",
+        options.setSymbolicDimensionValue("num_splits", 1L)   // QNN non accetta forme dinamiche
+        options.addQnn(
             mapOf(
                 "backend_path" to "libQnnHtp.so",
                 "enable_htp_fp16_precision" to "1",
