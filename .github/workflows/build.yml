@@ -6,6 +6,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Se compilato (es. v0.1) pubblica l'APK in una release con questo nome"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -36,8 +41,11 @@ jobs:
           name: MLStems-debug-apk
           path: MLStems.apk
 
-      - name: Publish release (solo sui tag v*)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Pubblica release (tag v* oppure nome indicato a mano)
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           files: MLStems.apk
+          generate_release_notes: true
