@@ -6,14 +6,20 @@
       "files": [
         {
           "name": "htdemucs.onnx",
+          "sha256": "96642ae30dd64e1c464765973090c3ea380f49b850b5a1f2f7c63308f306155c",
+          "size": 91312383,
           "urls": [
-            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_fp16.onnx"
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_fp16.onnx",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs.onnx"
           ]
         },
         {
           "name": "htdemucs.json",
+          "sha256": "d808ba80fc27032bf9e035af8de7efc1c31306a3c156322e1c56d8312f3b4117",
+          "size": 279,
           "urls": [
-            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_fp16.json"
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_fp16.json",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs.json"
           ]
         }
       ]
@@ -24,14 +30,20 @@
       "files": [
         {
           "name": "htdemucs_6s.onnx",
+          "sha256": "8bf891f10eb208f6fd945f427c8e348ddddef38069d47b8afb7d4aabc24bc15f",
+          "size": 110396023,
           "urls": [
-            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_6s.onnx"
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_6s.onnx",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs_6s.onnx"
           ]
         },
         {
           "name": "htdemucs_6s.json",
+          "sha256": "c770b3a2c1583b555f6da293c753547bab5e52d3995432ea50ec72bab510bcb0",
+          "size": 333,
           "urls": [
-            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_6s.json"
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_6s.json",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs_6s.json"
           ]
         }
       ]
@@ -42,56 +54,83 @@
       "files": [
         {
           "name": "htdemucs_ft.json",
+          "sha256": "46bd81f10743b76f9d494d9bc717d07d7691ab343322e022e467d8e3f727e9fe",
+          "size": 851,
           "urls": [
-            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft.json"
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft.json",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs_ft.json"
           ]
         },
         {
           "name": "htdemucs_ft_0.onnx",
+          "sha256": "4738167ecd97779b0b23e21c754f54d65d7b1e1d077a856ba88295b54a35ba4e",
+          "size": 168683222,
           "urls": [
-            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_0.onnx"
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_0.onnx",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs_ft_0.onnx"
           ]
         },
         {
           "name": "htdemucs_ft_0.json",
+          "sha256": "51629f32aa53dcd2a91bebd2c1824afa1b538187ca335ed7ca8bdcdeee5bdf4f",
+          "size": 308,
           "urls": [
-            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_0.json"
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_0.json",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs_ft_0.json"
           ]
         },
         {
           "name": "htdemucs_ft_1.onnx",
+          "sha256": "5f62c38f565e9a73fe60b1917220119fa7b7fc2c259d059a836a9751f0c01072",
+          "size": 168683222,
           "urls": [
-            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_1.onnx"
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_1.onnx",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs_ft_1.onnx"
           ]
         },
         {
           "name": "htdemucs_ft_1.json",
+          "sha256": "6ba0da3fa53f29bc23899ad3e4a95451a62c15494a8b70e6dc1251b72121ec48",
+          "size": 308,
           "urls": [
-            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_1.json"
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_1.json",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs_ft_1.json"
           ]
         },
         {
           "name": "htdemucs_ft_2.onnx",
+          "sha256": "f3a57a391d1a26cb1009761d664d44420abe22b7842b7f3147d45a1cdde85a7a",
+          "size": 168683222,
           "urls": [
-            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_2.onnx"
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_2.onnx",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs_ft_2.onnx"
           ]
         },
         {
           "name": "htdemucs_ft_2.json",
+          "sha256": "10960e11c3fda2c0d8cc29ca9ef108fc1493d7b1f249d4f9b7f5ba1a9f709df3",
+          "size": 308,
           "urls": [
-            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_2.json"
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_2.json",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs_ft_2.json"
           ]
         },
         {
           "name": "htdemucs_ft_3.onnx",
+          "sha256": "31baa94de72168b84feba38dbae38c99ac6c3877c4184e5892c837a4ea76f4e5",
+          "size": 168683222,
           "urls": [
-            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_3.onnx"
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_3.onnx",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs_ft_3.onnx"
           ]
         },
         {
           "name": "htdemucs_ft_3.json",
+          "sha256": "4a8f70ed80ef04b9c9cd13fdd94b1253fb51cdb8ba630421e2b4e823be3f2f25",
+          "size": 308,
           "urls": [
-            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_3.json"
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_ft_3.json",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs_ft_3.json"
           ]
         }
       ]
@@ -102,26 +141,38 @@
       "files": [
         {
           "name": "spleeter4_vocals.onnx",
+          "sha256": "db47148ab1c52709ce694893f532c91abfe3edc4d46238939570e036a22878ca",
+          "size": 19714141,
           "urls": [
-            "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/main/vocals.fp16.onnx"
+            "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/main/vocals.fp16.onnx",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/spleeter4_vocals.onnx"
           ]
         },
         {
           "name": "spleeter4_drums.onnx",
+          "sha256": "7ae4002e5633634674f74dc3356d5875b0da894d59ce0f60e844bb8f9cb8aa92",
+          "size": 19714140,
           "urls": [
-            "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/main/drums.fp16.onnx"
+            "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/main/drums.fp16.onnx",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/spleeter4_drums.onnx"
           ]
         },
         {
           "name": "spleeter4_bass.onnx",
+          "sha256": "ba4c4949a27222492cca49859901a873b4b71461dc48c7c5a51f93d31eb11f55",
+          "size": 19714139,
           "urls": [
-            "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/main/bass.fp16.onnx"
+            "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/main/bass.fp16.onnx",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/spleeter4_bass.onnx"
           ]
         },
         {
           "name": "spleeter4_other.onnx",
+          "sha256": "3cc59116cb7195946ab9596d8ca25984d09c0f8a70db8cf85d063132f97bc61d",
+          "size": 19714140,
           "urls": [
-            "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/main/other.fp16.onnx"
+            "https://huggingface.co/Best-Practice/spleeter-4stems-onnx/resolve/main/other.fp16.onnx",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/spleeter4_other.onnx"
           ]
         }
       ]
