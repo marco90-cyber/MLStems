@@ -9,7 +9,7 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/madewith-bestpractice/spleeter-4stems-onnx.git s
           cd s
-          for f in stft.py separate4.py bands.py; do echo "#### $f"; cat $f; done
+          for f in separate.py; do echo "#### $f"; cat $f; done
       - name: Demucs overlap
         run: |
           git clone --depth 1 https://github.com/HRSadeghi/demucs-onnx.git d

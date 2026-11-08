@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "MLStems"
 include(":app")
+include(":core")
