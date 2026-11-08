@@ -142,6 +142,10 @@ fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit, onMo
                                 "${ModelCatalog.all.firstOrNull { it.id == p.modelId }?.name ?: p.modelId} · ${fmt(p.durationMs)}",
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            if (p.separateMs > 0) Text(
+                                "Elaborato in ${fmt(p.separateMs)} · ×${"%.1f".format(p.realtimeFactor)} tempo reale · ${p.accel}",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                            )
                             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 p.stems.forEach { androidx.compose.foundation.layout.Box(
                                     Modifier.width(22.dp).hgt(6.dp).background(stemColor(it.name), androidx.compose.foundation.shape.RoundedCornerShape(50))) }
@@ -181,6 +185,7 @@ fun ModelsScreen(vm: AppViewModel, modifier: Modifier, onBack: () -> Unit) {
             Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall,
         )
         LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (com.mlapps.mlstems.engine.Accel.available) item { NpuPanel(vm) }
             items(ModelCatalog.all, key = { it.id }) { m ->
                 Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                     Column(Modifier.padding(16.dp)) {
@@ -333,6 +338,9 @@ private fun MixerContent(vm: AppViewModel, projectId: String, files: List<java.i
     Column(modifier.fillMaxSize()) {
         Bar(project.title, onBack)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (project.separateMs > 0) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Pill("Elaborato in ${fmt(project.separateMs)}"); Pill("×${"%.1f".format(project.realtimeFactor)} tempo reale"); Pill(project.accel)
+            }
             tracks.forEachIndexed { i, t ->
                 val c = stemColor(t.name)
                 Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
@@ -388,6 +396,40 @@ private fun MixerContent(vm: AppViewModel, projectId: String, files: List<java.i
                 Text(fmt(player.durationMs), Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
             }
         }
+        }
+    }
+}
+
+
+// ───────────────────────── NPU sperimentale ─────────────────────────
+
+@Composable
+private fun NpuPanel(vm: AppViewModel) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val prefs = remember { ctx.getSharedPreferences("settings", 0) }
+    var on by remember { mutableStateOf(prefs.getBoolean("npu", false)) }
+    var running by remember { mutableStateOf(false) }
+    val lines = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("NPU sperimentale", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                androidx.compose.material3.Switch(checked = on, onCheckedChange = { on = it; prefs.edit().putBoolean("npu", it).apply() })
+            }
+            Text(
+                "Usa il chip Qualcomm Hexagon per Spleeter 4 stem. Se non parte, l'app torna alla CPU. Prima fai il test per vedere se conviene.",
+                style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp),
+            )
+            FilledTonalButton(enabled = !running, onClick = {
+                running = true; lines.clear(); lines += "Test in corso…"
+                scope.launch(Dispatchers.IO) {
+                    val f = vm.models.modelsDir.resolve("spleeter4_vocals.onnx")
+                    com.mlapps.mlstems.engine.NpuBenchmark.run(ctx, f) { l -> scope.launch(Dispatchers.Main) { lines += l } }
+                    withContext(Dispatchers.Main) { running = false }
+                }
+            }) { Text(if (running) "Test in corso…" else "Esegui test CPU / NPU") }
+            lines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
     }
 }

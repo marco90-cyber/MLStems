@@ -21,6 +21,7 @@ class SpleeterEngine(
     private val dir: File,
     private val threads: Int = 4,
     private val prefix: String = "spleeter4_",
+    private val configure: (OrtSession.SessionOptions) -> Unit = {},
 ) : StemEngine {
 
     override val sources = listOf("vocals", "drums", "bass", "other")
@@ -38,7 +39,7 @@ class SpleeterEngine(
         val nStems = sources.size
         val env = OrtEnvironment.getEnvironment()
 
-        val options = OrtSession.SessionOptions().apply { setIntraOpNumThreads(threads) }
+        val options = OrtSession.SessionOptions().apply { setIntraOpNumThreads(threads); configure(this) }
         val sessions = sources.map { env.createSession(File(dir, "$prefix$it.onnx").absolutePath, options) }
         try {
             val cap = T * HOP + NFFT

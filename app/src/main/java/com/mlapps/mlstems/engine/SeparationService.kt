@@ -85,18 +85,28 @@ class SeparationService : Service() {
             }
 
             update("Lettura audio", 0f)
+            val t0 = System.currentTimeMillis()
             val audio = AudioDecoder.decode(this, uri) { update("Lettura audio", it * 0.1f) }
+            val decodeMs = System.currentTimeMillis() - t0
 
             val mm = ModelManager(this)
             check(mm.isInstalled(model)) { "Modello non installato" }
             val threads = Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
+            // NPU sperimentale (solo build NPU, attivata dall'utente, solo Spleeter): se non parte si torna alla CPU
+            var useNpu = Accel.available && model.family == Family.SPLEETER4 &&
+                getSharedPreferences("settings", 0).getBoolean("npu", false)
+            if (useNpu) {
+                update("Provo l'NPU", 0.1f)
+                useNpu = NpuBenchmark.probe(this, mm.modelsDir.resolve("spleeter4_vocals.onnx")) == null
+            }
             val engine: StemEngine = when (model.family) {
                 Family.DEMUCS -> DemucsEngine(DemucsConfig.load(mm.configFile(model)), threads)
-                Family.SPLEETER4 -> SpleeterEngine(mm.modelsDir, threads)
+                Family.SPLEETER4 -> SpleeterEngine(mm.modelsDir, threads, configure = { if (useNpu) Accel.configure(this, it) })
             }
 
             val id = UUID.randomUUID().toString()
             val dir = repo.dir(id)
+            val tSep = System.currentTimeMillis()
             val writers = engine.sources.indices.map { StemWriter(dir.resolve("stem_$it.flac"), audio.frames) }
             try {
                 val sink = object : StemSink {
@@ -111,7 +121,8 @@ class SeparationService : Service() {
             }
             writers.forEach { it.close() }
             val tracks = engine.sources.mapIndexed { i, name -> StemTrack(name = stemLabel(name), file = "stem_$i.flac") }
-            repo.save(Project(id, title, hash, modelId, tracks, audio.frames * 1000L / SAMPLE_RATE))
+            repo.save(Project(id, title, hash, modelId, tracks, audio.frames * 1000L / SAMPLE_RATE,
+                decodeMs = decodeMs, separateMs = System.currentTimeMillis() - tSep, accel = if (useNpu) "NPU" else "CPU"))
             state.value = SeparationStatus.Done(id)
             notifyResult(this, 3, "$title: separazione completata")
         } catch (e: kotlinx.coroutines.CancellationException) {

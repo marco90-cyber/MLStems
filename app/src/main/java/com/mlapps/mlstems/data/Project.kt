@@ -24,7 +24,13 @@ data class Project(
     val stems: List<StemTrack>,
     val durationMs: Long,
     val createdAt: Long = System.currentTimeMillis(),
-)
+    val decodeMs: Long = 0,      // tempo di lettura del brano
+    val separateMs: Long = 0,    // tempo di separazione vero e proprio
+    val accel: String = "CPU",   // "CPU" oppure "NPU"
+) {
+    /** Quante volte più veloce del tempo reale (0 se non misurato). */
+    val realtimeFactor: Float get() = if (separateMs > 0) durationMs.toFloat() / separateMs else 0f
+}
 
 /** Ogni progetto è una cartella: project.json + un FLAC per ogni stem. */
 class ProjectRepository(private val context: Context) {

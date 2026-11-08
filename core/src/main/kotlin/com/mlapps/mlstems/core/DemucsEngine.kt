@@ -80,6 +80,7 @@ class DemucsEngine(
     private val config: DemucsConfig,
     private val threads: Int = 4,
     private val overlap: Float = 0.25f,
+    private val configure: (OrtSession.SessionOptions) -> Unit = {},
 ) : StemEngine {
 
     override val sources get() = config.sources
@@ -142,6 +143,7 @@ class DemucsEngine(
 
         OrtSession.SessionOptions().use { options ->
             options.setIntraOpNumThreads(threads)
+            configure(options)
             env.createSession(member.file.absolutePath, options).use { session ->
                 val names = session.inputNames.toList()
                 val mixName = if ("mix" in names) "mix" else names[0]

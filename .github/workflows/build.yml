@@ -30,16 +30,24 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Build debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+      - name: Build APK normale
+        run: gradle assembleStandardDebug --no-daemon --stacktrace
+
+      - name: Build APK sperimentale NPU
+        run: gradle assembleNpuDebug -PlegacyJni=true --no-daemon --stacktrace
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk MLStems.apk
+        run: |
+          cp app/build/outputs/apk/standard/debug/app-standard-debug.apk MLStems.apk
+          cp app/build/outputs/apk/npu/debug/app-npu-debug.apk MLStems-NPU.apk
+          ls -la *.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: MLStems-debug-apk
-          path: MLStems.apk
+          path: |
+            MLStems.apk
+            MLStems-NPU.apk
 
       - name: Pubblica release (tag v* oppure nome indicato a mano)
         if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != ''
@@ -47,5 +55,7 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
-          files: MLStems.apk
+          files: |
+            MLStems.apk
+            MLStems-NPU.apk
           generate_release_notes: true
