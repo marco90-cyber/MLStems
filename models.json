@@ -25,6 +25,30 @@
       ]
     },
     {
+      "id": "htdemucs-int8",
+      "version": 1,
+      "files": [
+        {
+          "name": "htdemucs_int8.onnx",
+          "sha256": "2b461bd3e80690529ef75ef6bef16dbba727783e81411f7a3460ea06dcb11052",
+          "size": 84108789,
+          "urls": [
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_int8.onnx",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs_int8.onnx"
+          ]
+        },
+        {
+          "name": "htdemucs_int8.json",
+          "sha256": "d808ba80fc27032bf9e035af8de7efc1c31306a3c156322e1c56d8312f3b4117",
+          "size": 279,
+          "urls": [
+            "https://huggingface.co/HRSadeghi/demucs-onnx/resolve/main/htdemucs_int8.json",
+            "https://github.com/marco90-cyber/MLStems/releases/download/models-v1/htdemucs_int8.json"
+          ]
+        }
+      ]
+    },
+    {
       "id": "htdemucs-6s",
       "version": 1,
       "files": [
