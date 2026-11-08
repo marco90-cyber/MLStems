@@ -19,9 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -50,6 +49,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 import com.mlapps.mlstems.data.ModelCatalog
 import com.mlapps.mlstems.data.Project
@@ -76,6 +79,14 @@ private fun Bar(title: String, onBack: (() -> Unit)?, actions: @Composable () ->
     )
 }
 
+/** Icona pausa disegnata a mano: evita la libreria icone estesa (decine di MB). */
+private val PauseIcon: ImageVector = ImageVector.Builder(
+    name = "Pause", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f,
+).path(fill = SolidColor(Color.Black)) {
+    moveTo(6f, 19f); horizontalLineToRelative(4f); verticalLineToRelative(-14f); horizontalLineToRelative(-4f); close()
+    moveTo(14f, 5f); verticalLineToRelative(14f); horizontalLineToRelative(4f); verticalLineToRelative(-14f); horizontalLineToRelative(-4f); close()
+}.build()
+
 private fun fmt(ms: Long): String = "%d:%02d".format(ms / 60000, ms / 1000 % 60)
 
 // ───────────────────────── Home: elenco progetti ─────────────────────────
@@ -87,7 +98,7 @@ fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit, onMo
 
     Column(modifier.fillMaxSize()) {
         Bar("MLStems", null) {
-            IconButton(onClick = onModels) { Icon(Icons.Default.Tune, "Modelli") }
+            IconButton(onClick = onModels) { Icon(Icons.Default.Settings, "Modelli") }
         }
         if (projects.isEmpty()) {
             Text(
@@ -308,7 +319,7 @@ fun MixerScreen(vm: AppViewModel, projectId: String, modifier: Modifier, onBack:
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(fmt(pos), Modifier.weight(1f))
                 IconButton(onClick = { if (playing) player.pause() else player.play() }) {
-                    Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, if (playing) "Pausa" else "Riproduci")
+                    Icon(if (playing) PauseIcon else Icons.Default.PlayArrow, if (playing) "Pausa" else "Riproduci")
                 }
                 Text(fmt(player.durationMs), Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
             }
