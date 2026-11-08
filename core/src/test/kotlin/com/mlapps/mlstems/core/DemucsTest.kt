@@ -108,11 +108,11 @@ class DemucsTest {
             else (9000 * sin(2 * PI * 330 * i / 44100.0) + rnd.nextInt(-300, 300)).toInt().toShort()
         }
         val r = ShortArray(n) { i -> if (i in 100_000..101_000) Short.MAX_VALUE else (l[i] * 0.6 + rnd.nextInt(-50, 50)).toInt().toShort() }
-        val f = File.createTempFile("t", ".flac")
+        val f = File.createTempFile("flt", ".flac")
         FlacEncoder(f.outputStream().buffered(), 44100, n.toLong()).use { e ->
             e.write(l, r, 70_000); e.write(l.copyOfRange(70_000, n), r.copyOfRange(70_000, n), n - 70_000)
         }
-        val raw = File.createTempFile("t", ".raw")
+        val raw = File.createTempFile("flt", ".raw")
         val pr = ProcessBuilder(ffmpeg, "-y", "-v", "error", "-i", f.path, "-f", "s16le", "-acodec", "pcm_s16le", raw.path).redirectErrorStream(true).start()
         val log = pr.inputStream.bufferedReader().readText()
         check(pr.waitFor() == 0 && log.isBlank()) { "ffmpeg: $log" }
