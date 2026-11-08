@@ -14,8 +14,8 @@ class DemucsTest {
     @Test
     fun spectrogramRoundTrip() {
         val n = 343_980
-        val rnd = Random(1)
-        val x = Array(2) { FloatArray(n) { rnd.nextFloat() * 2f - 1f } }
+                // segnale a banda limitata: il bin di Nyquist scartato da demucs non ha energia
+        val x = Array(2) { c -> FloatArray(n) { i -> (0.4 * sin(2 * PI * 440 * i / 44100.0 + c) + 0.3 * sin(2 * PI * 3300 * i / 44100.0) + 0.2 * sin(2 * PI * 9000 * i / 44100.0)).toFloat() } }
         val sp = DemucsSpectrogram(4096, 1024, n)
         val spec = sp.forward(x)
         val y = sp.inverse(spec, 0, 2)
@@ -26,7 +26,7 @@ class DemucsTest {
             if (i in 4096 until n - 4096) interior = maxOf(interior, e)
         }
         println("ROUNDTRIP max errore totale=$all  interno=$interior  frame=${sp.frames}")
-        assertTrue(interior < 1e-3f, "ricostruzione STFT errata: $interior")
+        assertTrue(interior < 1e-4f, "ricostruzione STFT errata: $interior")
     }
 
     private fun synth(seconds: Int): Array<FloatArray> {
@@ -49,16 +49,12 @@ class DemucsTest {
         return arrayOf(l, r)
     }
 
-    @Test
-    fun separateSyntheticWithRealModel() {
-        val path = System.getenv("MLSTEMS_MODEL_JSON")
-        if (path == null) { println("SKIP: MLSTEMS_MODEL_JSON non impostata"); return }
-        val cfg = DemucsConfig.load(File(path))
-        val engine = DemucsEngine(cfg, threads = 4)
+    private fun check(engine: StemEngine, name: String, minSnr: Double) {
         val mix = synth(15)
         val n = mix[0].size
-        val stems = Array(cfg.sources.size) { Array(2) { FloatArray(n) } }
-        val pos = IntArray(cfg.sources.size)
+        val ns = engine.sources.size
+        val stems = Array(ns) { Array(2) { FloatArray(n) } }
+        val pos = IntArray(ns)
         val sink = object : StemSink {
             override fun write(stem: Int, left: FloatArray, right: FloatArray, count: Int) {
                 System.arraycopy(left, 0, stems[stem][0], pos[stem], count)
@@ -69,29 +65,35 @@ class DemucsTest {
         val t0 = System.nanoTime()
         engine.separate(mix[0], mix[1], sink) { }
         val secs = (System.nanoTime() - t0) / 1e9
-        println("SEPARAZIONE ${cfg.name}: ${n / 44100.0}s di audio in ${"%.1f".format(secs)}s")
+        println("SEPARAZIONE $name: ${n / 44100.0}s di audio in ${"%.1f".format(secs)}s")
 
-        for (s in stems.indices) assertTrue(pos[s] == n, "stem ${cfg.sources[s]}: scritti ${pos[s]} di $n campioni")
+        for (s in 0 until ns) assertTrue(pos[s] == n, "stem ${engine.sources[s]}: scritti ${pos[s]} di $n campioni")
         var sig = 0.0; var err = 0.0
-        val rms = DoubleArray(stems.size)
+        val rms = DoubleArray(ns)
         for (c in 0 until 2) for (i in 0 until n) {
             var sum = 0.0
-            for (s in stems.indices) { val v = stems[s][c][i].toDouble(); assertTrue(v.isFinite(), "valore non finito"); sum += v; rms[s] += v * v }
+            for (s in 0 until ns) { val v = stems[s][c][i].toDouble(); assertTrue(v.isFinite(), "valore non finito"); sum += v; rms[s] += v * v }
             sig += mix[c][i].toDouble().let { it * it }
             err += (mix[c][i] - sum).let { it * it }
         }
         val snr = 10 * log10(sig / err)
         println("SOMMA STEM vs MIX: SNR = ${"%.1f".format(snr)} dB")
-        for (s in stems.indices) println("  stem ${cfg.sources[s]}: rms=${"%.4f".format(kotlin.math.sqrt(rms[s] / (2.0 * n)))}")
-        // continuità ai confini dei blocchi (i blocchi iniziano a 257985 e 515970)
-        for (b in intArrayOf(257_985, 515_970)) {
-            var worst = 0f; var typical = 0f
-            for (s in stems.indices) {
-                worst = maxOf(worst, abs(stems[s][0][b] - stems[s][0][b - 1]))
-                for (k in b - 2000 until b - 1000) typical = maxOf(typical, abs(stems[s][0][k] - stems[s][0][k - 1]))
-            }
-            println("  confine $b: salto=${"%.4f".format(worst)} tipico=${"%.4f".format(typical)}")
-        }
-        assertTrue(snr > 10.0, "la somma degli stem non ricostruisce il mix (SNR $snr dB)")
+        for (s in 0 until ns) println("  stem ${engine.sources[s]}: rms=${"%.4f".format(kotlin.math.sqrt(rms[s] / (2.0 * n)))}")
+        assertTrue(snr > minSnr, "la somma degli stem non ricostruisce il mix (SNR $snr dB)")
+    }
+
+    @Test
+    fun demucsRealModel() {
+        val path = System.getenv("MLSTEMS_MODEL_JSON")
+        if (path == null) { println("SKIP demucs: MLSTEMS_MODEL_JSON non impostata"); return }
+        val cfg = DemucsConfig.load(File(path))
+        check(DemucsEngine(cfg, threads = 4), cfg.name, 10.0)
+    }
+
+    @Test
+    fun spleeterRealModel() {
+        val dir = System.getenv("MLSTEMS_SPLEETER_DIR")
+        if (dir == null) { println("SKIP spleeter: MLSTEMS_SPLEETER_DIR non impostata"); return }
+        check(SpleeterEngine(File(dir), threads = 4), "spleeter4", 60.0)
     }
 }

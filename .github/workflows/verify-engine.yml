@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       model:
-        description: "Nome del modello (htdemucs, htdemucs_6s, htdemucs_ft)"
+        description: "Modello da provare (htdemucs, htdemucs_6s, htdemucs_ft, spleeter4)"
         default: "htdemucs"
   push:
     paths:
@@ -31,13 +31,16 @@ jobs:
           M="${{ github.event.inputs.model || 'htdemucs' }}"
           mkdir -p models
           base="https://github.com/${{ github.repository }}/releases/download/models-v1"
-          if [ "$M" = "htdemucs_ft" ]; then
+          if [ "$M" = "spleeter4" ]; then
+            for s in vocals drums bass other; do curl -fsSL -o models/spleeter4_$s.onnx "$base/spleeter4_$s.onnx"; done
+            echo "MLSTEMS_SPLEETER_DIR=$PWD/models" >> $GITHUB_ENV
+          elif [ "$M" = "htdemucs_ft" ]; then
             for f in htdemucs_ft.json htdemucs_ft_0.json htdemucs_ft_1.json htdemucs_ft_2.json htdemucs_ft_3.json htdemucs_ft_0.onnx htdemucs_ft_1.onnx htdemucs_ft_2.onnx htdemucs_ft_3.onnx; do curl -fsSL -o models/$f "$base/$f"; done
           else
             curl -fsSL -o models/$M.json "$base/$M.json"; curl -fsSL -o models/$M.onnx "$base/$M.onnx"
           fi
           ls -la models
-          echo "MLSTEMS_MODEL_JSON=$PWD/models/$M.json" >> $GITHUB_ENV
+          [ "$M" = "spleeter4" ] || echo "MLSTEMS_MODEL_JSON=$PWD/models/$M.json" >> $GITHUB_ENV
       - name: Test del motore
         shell: bash
         run: |
