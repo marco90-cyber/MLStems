@@ -1,0 +1,309 @@
+package com.mlapps.mlstems.ui
+
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledIconToggleButton
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.mlapps.mlstems.data.ModelCatalog
+import com.mlapps.mlstems.data.Project
+import com.mlapps.mlstems.data.StemModel
+import com.mlapps.mlstems.engine.SeparationService
+import com.mlapps.mlstems.engine.SeparationState
+import com.mlapps.mlstems.engine.SeparationStatus
+import com.mlapps.mlstems.player.Exporter
+import com.mlapps.mlstems.player.MultiStemPlayer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun Bar(title: String, onBack: (() -> Unit)?, actions: @Composable () -> Unit = {}) {
+    TopAppBar(
+        title = { Text(title) },
+        navigationIcon = {
+            if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro") }
+        },
+        actions = { actions() },
+    )
+}
+
+private fun fmt(ms: Long): String = "%d:%02d".format(ms / 60000, ms / 1000 % 60)
+
+// ───────────────────────── Home: elenco progetti ─────────────────────────
+
+@Composable
+fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit, onModels: () -> Unit, onOpen: (String) -> Unit) {
+    val projects by vm.projects.collectAsState()
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(onPick) }
+
+    Column(modifier.fillMaxSize()) {
+        Bar("MLStems", null) {
+            IconButton(onClick = onModels) { Icon(Icons.Default.Tune, "Modelli") }
+        }
+        if (projects.isEmpty()) {
+            Text(
+                "Nessun brano elaborato.\nTocca “Nuovo brano” per separare le tracce.",
+                Modifier.padding(24.dp), style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+        LazyColumn(Modifier.weight(1f), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(projects, key = { it.id }) { p ->
+                Card(onClick = { onOpen(p.id) }, Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(p.title, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "${ModelCatalog.all.firstOrNull { it.id == p.modelId }?.name ?: p.modelId} · ${p.stems.size} stem · ${fmt(p.durationMs)}",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        IconButton(onClick = { vm.deleteProject(p) }) { Icon(Icons.Default.Delete, "Elimina") }
+                    }
+                }
+            }
+        }
+        ExtendedFloatingActionButton(
+            onClick = { picker.launch(arrayOf("audio/*")) },
+            icon = { Icon(Icons.Default.Add, null) },
+            text = { Text("Nuovo brano") },
+            modifier = Modifier.padding(16.dp).align(Alignment.End),
+        )
+    }
+}
+
+// ───────────────────────── Modelli ─────────────────────────
+
+@Composable
+fun ModelsScreen(vm: AppViewModel, modifier: Modifier, onBack: () -> Unit) {
+    val installed by vm.installed.collectAsState()
+    val downloads by vm.downloads.collectAsState()
+    var importing by remember { mutableStateOf<StemModel?>(null) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        importing?.let { m -> uri?.let { vm.importModel(m, it) } }
+        importing = null
+    }
+
+    Column(modifier.fillMaxSize()) {
+        Bar("Modelli", onBack)
+        Text(
+            "Dal più veloce al più qualitativo. I modelli si scaricano una volta e restano sul dispositivo.",
+            Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall,
+        )
+        LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(ModelCatalog.all, key = { it.id }) { m ->
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(m.name, style = MaterialTheme.typography.titleMedium)
+                        Text(m.description, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "${m.stems.size} stem · ~${m.sizeMb} MB\nVelocità ${"●".repeat(m.speed)}${"○".repeat(5 - m.speed)}   Qualità ${"●".repeat(m.quality)}${"○".repeat(5 - m.quality)}",
+                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp),
+                        )
+                        val p = downloads[m.id]
+                        when {
+                            p != null -> LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
+                            m.id in installed -> OutlinedButton(onClick = { vm.deleteModel(m) }) { Text("Elimina") }
+                            else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { vm.download(m) }, enabled = m.url.isNotBlank()) { Text("Scarica") }
+                                FilledTonalButton(onClick = { importing = m; picker.launch(arrayOf("*/*")) }) { Text("Importa file") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ───────────────────────── Nuovo brano: scelta modello ─────────────────────────
+
+@Composable
+fun NewTrackScreen(vm: AppViewModel, uri: Uri, modifier: Modifier, onBack: () -> Unit, onModels: () -> Unit, onStart: (String) -> Unit) {
+    val installed by vm.installed.collectAsState()
+    val available = ModelCatalog.all.filter { it.id in installed }
+    var selected by remember(installed) { mutableStateOf(available.firstOrNull()?.id) }
+
+    Column(modifier.fillMaxSize()) {
+        Bar("Nuovo brano", onBack)
+        Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
+            Text("Scegli il modello", style = MaterialTheme.typography.titleMedium)
+            if (available.isEmpty()) {
+                Text("Nessun modello installato.", Modifier.padding(vertical = 8.dp))
+                Button(onClick = onModels) { Text("Vai ai modelli") }
+            }
+            available.forEach { m ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = selected == m.id, onClick = { selected = m.id })
+                    Column {
+                        Text(m.name)
+                        Text("${m.stems.joinToString(", ")}", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = { onStart(selected!!) }, enabled = selected != null) { Text("Avvia separazione") }
+            Text(
+                "Se hai già elaborato questo brano con lo stesso modello, il progetto salvato si apre subito.",
+                Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+// ───────────────────────── Elaborazione ─────────────────────────
+
+@Composable
+fun ProcessingScreen(modifier: Modifier, onDone: (String) -> Unit, onClose: () -> Unit) {
+    val status by SeparationState.status.collectAsState()
+    val ctx = LocalContext.current
+    LaunchedEffect(status) {
+        (status as? SeparationStatus.Done)?.let { onDone(it.projectId) }
+    }
+    Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        when (val s = status) {
+            is SeparationStatus.Running -> {
+                CircularProgressIndicator()
+                Text(s.title, Modifier.padding(top = 16.dp), style = MaterialTheme.typography.titleMedium)
+                Text("${s.stage} · ${(s.progress * 100).toInt()}%")
+                LinearProgressIndicator(progress = { s.progress }, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp))
+                Text("Puoi spegnere lo schermo: l'elaborazione continua.", style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(onClick = { SeparationService.cancel(ctx); onClose() }, modifier = Modifier.padding(top = 16.dp)) { Text("Annulla") }
+            }
+            is SeparationStatus.Error -> {
+                Text("Errore", style = MaterialTheme.typography.titleMedium)
+                Text(s.message, Modifier.padding(vertical = 8.dp))
+                Button(onClick = onClose) { Text("Chiudi") }
+            }
+            else -> CircularProgressIndicator()
+        }
+    }
+}
+
+// ───────────────────────── Mixer / player ─────────────────────────
+
+@Composable
+fun MixerScreen(vm: AppViewModel, projectId: String, modifier: Modifier, onBack: () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val project = remember(projectId) { vm.repo.load(projectId) }
+    val files = remember(projectId) { project.stems.map { vm.repo.dir(projectId).resolve(it.file) } }
+    val player = remember(projectId) {
+        MultiStemPlayer(files).also { p ->
+            project.stems.forEachIndexed { i, t -> p.gains[i] = t.volume; p.muted[i] = t.muted; p.solo[i] = t.solo }
+        }
+    }
+    var tracks by remember { mutableStateOf(project.stems) }
+    var playing by remember { mutableStateOf(false) }
+    var pos by remember { mutableStateOf(0L) }
+    var exporting by remember { mutableStateOf(false) }
+
+    fun persist() = vm.saveProject(project.copy(stems = tracks))
+    DisposableEffect(projectId) { onDispose { player.release(); persist() } }
+    LaunchedEffect(projectId) {
+        while (true) { pos = player.positionMs; playing = player.isPlaying; delay(150) }
+    }
+
+    Column(modifier.fillMaxSize()) {
+        Bar(project.title, onBack)
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            tracks.forEachIndexed { i, t ->
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(t.name, style = MaterialTheme.typography.titleSmall)
+                            Slider(value = t.volume, onValueChange = { v ->
+                                player.gains[i] = v
+                                tracks = tracks.toMutableList().also { it[i] = t.copy(volume = v) }
+                            }, valueRange = 0f..1.5f)
+                        }
+                        FilledIconToggleButton(checked = t.muted, onCheckedChange = { c ->
+                            player.muted[i] = c
+                            tracks = tracks.toMutableList().also { it[i] = t.copy(muted = c) }
+                        }) { Text("M") }
+                        FilledIconToggleButton(checked = t.solo, onCheckedChange = { c ->
+                            player.solo[i] = c
+                            tracks = tracks.toMutableList().also { it[i] = t.copy(solo = c) }
+                        }) { Text("S") }
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(enabled = !exporting, onClick = {
+                    exporting = true
+                    scope.launch(Dispatchers.IO) {
+                        Exporter.exportMix(ctx, project.title, files, player.gains, player.muted, player.solo)
+                        withContext(Dispatchers.Main) { exporting = false; vm.message.value = "Mix salvato in Download/MLStems" }
+                    }
+                }) { Text("Esporta mix") }
+                OutlinedButton(enabled = !exporting, onClick = {
+                    exporting = true
+                    scope.launch(Dispatchers.IO) {
+                        tracks.forEachIndexed { i, t -> Exporter.exportStem(ctx, project.title, t.name, files[i]) }
+                        withContext(Dispatchers.Main) { exporting = false; vm.message.value = "Stem salvati in Download/MLStems" }
+                    }
+                }) { Text("Esporta stem") }
+            }
+        }
+        // trasporto
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Slider(value = pos.toFloat(), onValueChange = { player.seekTo(it.toLong()); pos = it.toLong() },
+                valueRange = 0f..player.durationMs.toFloat().coerceAtLeast(1f))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(fmt(pos), Modifier.weight(1f))
+                IconButton(onClick = { if (playing) player.pause() else player.play() }) {
+                    Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, if (playing) "Pausa" else "Riproduci")
+                }
+                Text(fmt(player.durationMs), Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            }
+        }
+    }
+}
