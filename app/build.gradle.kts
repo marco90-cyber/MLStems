@@ -13,8 +13,8 @@ android {
         applicationId = "com.mlapps.mlstems"
         minSdk = 29
         targetSdk = 34
-        versionCode = 7
-        versionName = "0.7"
+        versionCode = 8
+        versionName = "0.8"
 
         // Solo telefoni e tablet a 64 bit: toglie le librerie x86 e a 32 bit di ONNX Runtime (~50 MB)
         ndk { abiFilters += "arm64-v8a" }
