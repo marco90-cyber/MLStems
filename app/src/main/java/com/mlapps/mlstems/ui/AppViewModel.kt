@@ -13,6 +13,7 @@ import com.mlapps.mlstems.engine.DownloadState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -152,7 +153,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // più stem insieme: la decodifica di ognuno è indipendente
                 val w: List<java.io.File> = kotlinx.coroutines.coroutineScope {
                     val jobs: List<kotlinx.coroutines.Deferred<java.io.File>> = u.mapIndexed { i, uri ->
-                        kotlinx.coroutines.async(Dispatchers.IO) {
+                        async(Dispatchers.IO) {
                             com.mlapps.mlstems.engine.StemCache.wavFor(app, projectId, uri, project.stems[i].file) { f: Float ->
                                 part[i] = f
                                 preparing.value = Prep(projectId, project.title, part.sum() / u.size)
