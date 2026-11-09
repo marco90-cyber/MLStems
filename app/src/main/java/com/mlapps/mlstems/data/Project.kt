@@ -220,16 +220,25 @@ class ProjectRepository(private val context: Context) {
     }
 
     /** Porta nella cartella dei progetti i brani che le versioni precedenti tenevano dentro l'app. */
-    fun migrateInternal(): Int {
+    fun pendingInternal(): Int = File(context.filesDir, "projects").listFiles().orEmpty().count { it.isDirectory }
+
+    fun migrateInternal(onProgress: (Float) -> Unit = {}, cancelled: () -> Boolean = { false }): Int {
         if (root() == null) return 0
-        val old = File(context.filesDir, "projects")
+        val dirs = File(context.filesDir, "projects").listFiles().orEmpty().filter { it.isDirectory }
         var moved = 0
-        for (dir in old.listFiles().orEmpty().filter { it.isDirectory }) {
-            val ok = runCatching {
+        for ((n, dir) in dirs.withIndex()) {
+            try {
                 val p = json.decodeFromString<Project>(File(dir, "project.json").readText())
-                if (findByHash(p.sourceHash, p.modelId) == null) { storeFrom(p, dir); moved++ }
-            }.isSuccess
-            if (ok) dir.deleteRecursively()
+                if (findByHash(p.sourceHash, p.modelId) == null) {
+                    storeFrom(p, dir, { f -> onProgress((n + f) / dirs.size) }, cancelled); moved++
+                }
+                dir.deleteRecursively()
+            } catch (e: ImportCancelled) {
+                break                       // quelli rimasti si spostano al prossimo avvio
+            } catch (e: Exception) {
+                // progetto illeggibile: resta dov'è
+            }
+            onProgress((n + 1f) / dirs.size)
         }
         return moved
     }

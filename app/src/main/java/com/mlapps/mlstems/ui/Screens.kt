@@ -409,6 +409,9 @@ private fun MixerContent(vm: AppViewModel, projectId: String, files: List<java.i
     var playing by remember { mutableStateOf(false) }
     var pos by remember { mutableStateOf(0L) }
     var exporting by remember { mutableStateOf(false) }
+    var exportProgress by remember { mutableStateOf(0f) }
+    var exportLabel by remember { mutableStateOf("") }
+    val exportCancel = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
 
     fun persist() = vm.saveProject(project.copy(stems = tracks))
     DisposableEffect(projectId) { onDispose { player.release(); persist() } }
@@ -447,19 +450,41 @@ private fun MixerContent(vm: AppViewModel, projectId: String, files: List<java.i
                   }
                 }
             }
+            val fmt = com.mlapps.mlstems.engine.Settings.exportFormat(ctx)
+            fun runExport(label: String, done: String, job: (onProgress: (Float) -> Unit, cancelled: () -> Boolean) -> Unit) {
+                exporting = true; exportProgress = 0f; exportLabel = label; exportCancel.set(false)
+                scope.launch(Dispatchers.IO) {
+                    val msg = try {
+                        job({ exportProgress = it }, { exportCancel.get() }); done
+                    } catch (e: com.mlapps.mlstems.player.ExportCancelled) {
+                        "Esportazione annullata"
+                    } catch (e: Exception) {
+                        com.mlapps.mlstems.engine.ProcessingLog.add(ctx, "Errore esportazione: ${e.message}")
+                        "Esportazione non riuscita"
+                    }
+                    withContext(Dispatchers.Main) { exporting = false; vm.message.value = msg }
+                }
+            }
+            if (exporting) {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(exportLabel, style = MaterialTheme.typography.titleSmall)
+                        LinearProgressIndicator(progress = { exportProgress }, modifier = Modifier.fillMaxWidth())
+                        OutlinedButton(onClick = { exportCancel.set(true) }) { Text("Annulla") }
+                    }
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(enabled = !exporting, onClick = {
-                    exporting = true
-                    scope.launch(Dispatchers.IO) {
-                        Exporter.exportMix(ctx, project.title, files, player.gains, player.muted, player.solo)
-                        withContext(Dispatchers.Main) { exporting = false; vm.message.value = "Mix salvato in Download/MLStems" }
+                    runExport("Esporto il mix (${fmt.label})", "Mix salvato in Download/MLStems") { p, c ->
+                        Exporter.exportMix(ctx, project.title, files, player.gains, player.muted, player.solo, fmt, p, c)
                     }
                 }) { Text("Esporta mix") }
                 OutlinedButton(enabled = !exporting, onClick = {
-                    exporting = true
-                    scope.launch(Dispatchers.IO) {
-                        tracks.forEachIndexed { i, t -> Exporter.exportStem(ctx, project.title, t.name, stemUris[i], project.stems[i].file.substringAfterLast('.', "flac")) }
-                        withContext(Dispatchers.Main) { exporting = false; vm.message.value = "Stem salvati in Download/MLStems" }
+                    runExport("Esporto gli stem (${fmt.label})", "Stem salvati in Download/MLStems") { p, c ->
+                        tracks.forEachIndexed { i, t ->
+                            Exporter.exportStem(ctx, project.title, t.name, files[i], fmt, { p((i + it) / tracks.size) }, c)
+                        }
                     }
                 }) { Text("Esporta stem") }
             }

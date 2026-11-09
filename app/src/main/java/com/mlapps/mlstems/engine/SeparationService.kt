@@ -116,8 +116,10 @@ class SeparationService : Service() {
             val folder = repo.newFolder(title)
             val tSep = System.currentTimeMillis()
             val labels = engine.sources.map { stemLabel(it) }
-            val docs = labels.map { repo.newFile(folder, "$it.flac", "audio/flac") }
-            val writers = docs.map { StemWriter(contentResolver.openOutputStream(it.uri)!!, audio.frames) }
+            val fmt = Settings.storeFormat(this)
+            ProcessingLog.add(this, "Stem salvati in ${fmt.label}")
+            val docs = labels.map { repo.newFile(folder, "$it.${fmt.ext}", fmt.mime) }
+            val writers = docs.map { StemWriter(contentResolver.openOutputStream(it.uri)!!, audio.frames, fmt) }
             try {
                 val sink = object : StemSink {
                     override fun write(stem: Int, left: FloatArray, right: FloatArray, count: Int) =
@@ -137,7 +139,7 @@ class SeparationService : Service() {
                 throw e
             }
             writers.forEach { it.close() }
-            val tracks = labels.mapIndexed { i, name -> StemTrack(name = name, file = docs[i].name ?: "$name.flac") }
+            val tracks = labels.mapIndexed { i, name -> StemTrack(name = name, file = docs[i].name ?: "$name.${fmt.ext}") }
             val saved = repo.finish(folder, Project(folder.name!!, title, hash, modelId, tracks, audio.frames * 1000L / SAMPLE_RATE,
                 decodeMs = decodeMs, separateMs = System.currentTimeMillis() - tSep, accel = if (useNpu) "NPU" else "CPU"))
             val id = saved.id

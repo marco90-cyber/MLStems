@@ -33,7 +33,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         refreshCatalog()
-        if (library.value != null) io { repo.migrateInternal(); projects.value = repo.list() }
+        if (library.value != null) migrate()
         viewModelScope.launch {   // quando un download finisce (anche in background) aggiorna la lista
             DownloadState.tick.collect {
                 installed.value = models.installedIds()
@@ -79,12 +79,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshProjects() = io { projects.value = repo.list() }
 
-    fun setLibrary(tree: Uri) = io {
+    fun setLibrary(tree: Uri) {
         repo.setLibrary(tree)
         library.value = repo.libraryName()
-        val moved = repo.migrateInternal()
+        migrate(announce = true)
+    }
+
+    /** Sposta nella cartella dei progetti i brani rimasti dentro l'app, con barra e Annulla. */
+    private fun migrate(announce: Boolean = false) = io {
+        var moved = 0
+        if (repo.pendingInternal() > 0 && loading.value == null) {
+            cancelLoad.set(false)
+            loading.value = Loading("Sposto i brani nella cartella", 0f)
+            moved = repo.migrateInternal({ f -> loading.value = Loading("Sposto i brani nella cartella", f) }, { cancelLoad.get() })
+            loading.value = null
+        }
         projects.value = repo.list()
-        message.value = if (moved > 0) "Cartella scelta: spostati $moved brani dall'app" else "Cartella dei progetti: ${library.value}"
+        if (moved > 0) message.value = "Spostati $moved brani dall'app alla cartella"
+        else if (announce) message.value = "Cartella dei progetti: ${library.value}"
     }
 
     fun refreshCatalog() = io {

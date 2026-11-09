@@ -17,6 +17,7 @@ import com.marco.mltheme.MLSliderRow
 import com.marco.mltheme.MLThemeSettingsGroup
 import com.mlapps.mlstems.engine.Settings
 import kotlinx.coroutines.Dispatchers
+import com.mlapps.mlstems.engine.AudioFormat
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -26,6 +27,8 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onLog: () -> Unit, onIn
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var threads by remember { mutableStateOf(Settings.threads(ctx)) }
+    var storeFmt by remember { mutableStateOf(Settings.storeFormat(ctx)) }
+    var exportFmt by remember { mutableStateOf(Settings.exportFormat(ctx)) }
 
     val opener = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) { vm.loadProject(uri); onBack() }   // l'avanzamento si vede in Home
@@ -43,6 +46,16 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onLog: () -> Unit, onIn
                 range = 1f..Settings.maxThreads.toFloat(),
                 steps = (Settings.maxThreads - 2).coerceAtLeast(0),
             ) { threads = it.toInt(); Settings.setThreads(ctx, threads) }
+        }
+        MLGroup("Formato audio") {
+            MLNavRow("Stem salvati", "${storeFmt.label} · tocca per cambiare (vale per i nuovi brani)") {
+                storeFmt = if (storeFmt == AudioFormat.MP3) AudioFormat.FLAC else AudioFormat.MP3
+                Settings.setStoreFormat(ctx, storeFmt.key)
+            }
+            MLNavRow("Esportazione", "${exportFmt.label} · tocca per cambiare") {
+                exportFmt = AudioFormat.entries[(exportFmt.ordinal + 1) % AudioFormat.entries.size]
+                Settings.setExportFormat(ctx, exportFmt.key)
+            }
         }
         MLGroup("Diagnostica") {
             MLNavRow("Log di elaborazione", "Tempi e memoria di ogni brano: condividilo per migliorare l'app") { onLog() }
