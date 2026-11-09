@@ -290,10 +290,12 @@ fun ModelsScreen(vm: AppViewModel, modifier: Modifier, onBack: () -> Unit) {
 // ───────────────────────── Nuovo brano: scelta modello ─────────────────────────
 
 @Composable
-fun NewTrackScreen(vm: AppViewModel, uri: Uri, modifier: Modifier, onBack: () -> Unit, onModels: () -> Unit, onStart: (String) -> Unit) {
+fun NewTrackScreen(vm: AppViewModel, uri: Uri, modifier: Modifier, onBack: () -> Unit, onModels: () -> Unit, onStart: (String, Boolean) -> Unit) {
     val installed by vm.installed.collectAsState()
     val available = ModelCatalog.all.filter { it.id in installed }
     var selected by remember(installed) { mutableStateOf(available.firstOrNull()?.id) }
+    var two by remember { mutableStateOf(false) }
+    val canTwo = available.firstOrNull { it.id == selected }?.family == com.mlapps.mlstems.data.Family.SPLEETER4
     val ctx = LocalContext.current
     var durationMs by remember(uri) { mutableStateOf(0L) }
     LaunchedEffect(uri) {
@@ -334,8 +336,22 @@ fun NewTrackScreen(vm: AppViewModel, uri: Uri, modifier: Modifier, onBack: () ->
                     }
                 }
             }
+            if (canTwo) {
+                Text("Quanti stem", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = !two, onClick = { two = false })
+                    Column { Text("4 stem"); Text("Voce, batteria, basso, altro", style = MaterialTheme.typography.bodySmall) }
+                }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = two, onClick = { two = true })
+                    Column { Text("2 stem · circa 4 volte più veloce"); Text("Voce e strumentale", style = MaterialTheme.typography.bodySmall) }
+                }
+            } else if (selected != null) {
+                Text("Con i modelli Demucs gli stem sono sempre quelli del modello: farne meno non fa risparmiare tempo.",
+                    Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodySmall)
+            }
             Spacer(Modifier.height(16.dp))
-            Button(onClick = { onStart(selected!!) }, enabled = selected != null) { Text(if (long) "Avvia comunque" else "Avvia separazione") }
+            Button(onClick = { onStart(selected!!, canTwo && two) }, enabled = selected != null) { Text(if (long) "Avvia comunque" else "Avvia separazione") }
             Text(
                 "Se hai già elaborato questo brano con lo stesso modello, il progetto salvato si apre subito.",
                 Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodySmall,

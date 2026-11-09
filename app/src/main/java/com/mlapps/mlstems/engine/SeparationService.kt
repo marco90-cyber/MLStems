@@ -60,13 +60,14 @@ class SeparationService : Service() {
         }
         val uri = Uri.parse(intent!!.getStringExtra(EXTRA_URI)!!)
         val modelId = intent.getStringExtra(EXTRA_MODEL)!!
+        val twoStem = intent.getBooleanExtra(EXTRA_TWO, false)
         startForeground(1, notification("Preparazione…", 0f), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         val mine = ++runId
-        job = scope.launch { run(uri, modelId, mine) }
+        job = scope.launch { run(uri, modelId, twoStem, mine) }
         return START_NOT_STICKY
     }
 
-    private fun run(uri: Uri, modelId: String, mine: Int) {
+    private fun run(uri: Uri, modelId: String, twoStem: Boolean, mine: Int) {
         val state = SeparationState.status
         var title = "Brano"
         val wake = acquireWakeLock(this, "separation")   // CPU attiva anche a schermo spento
@@ -84,11 +85,11 @@ class SeparationService : Service() {
 
             update("Controllo del brano", 0f)
             val hash = sha256(uri)
-            repo.findByHash(hash, modelId)?.let {            // già elaborato: riapri il progetto
+            repo.findByHash(hash, modelId, if (twoStem) 2 else 0)?.let {            // già elaborato: riapri il progetto
                 state.value = SeparationStatus.Done(it.id); return
             }
 
-            ProcessingLog.add(this, "──── Nuova elaborazione: \"$title\" con $modelId")
+            ProcessingLog.add(this, "──── Nuova elaborazione: \"$title\" con $modelId${if (twoStem) " (2 stem: voce + strumentale)" else ""}")
             ProcessingLog.add(this, "App ${appVersion()} · ${ProcessingLog.device(this)}")
             update("Lettura audio", 0f)
             val t0 = System.currentTimeMillis()
@@ -110,7 +111,7 @@ class SeparationService : Service() {
             }
             val engine: StemEngine = when (model.family) {
                 Family.DEMUCS -> DemucsEngine(DemucsConfig.load(mm.configFile(model)), threads)
-                Family.SPLEETER4 -> SpleeterEngine(mm.modelsDir, threads, configure = { if (useNpu) Accel.configure(this, it, variant) })
+                Family.SPLEETER4 -> SpleeterEngine(mm.modelsDir, threads, twoStem = twoStem, configure = { if (useNpu) Accel.configure(this, it, variant) })
             }
 
             val folder = repo.newFolder(title)
@@ -205,14 +206,16 @@ class SeparationService : Service() {
         private const val CHANNEL = "separation"
         private const val EXTRA_URI = "uri"
         private const val EXTRA_MODEL = "model"
+        private const val EXTRA_TWO = "two"
         const val ACTION_CANCEL = "cancel"
 
-        fun start(context: Context, uri: Uri, modelId: String) {
+        fun start(context: Context, uri: Uri, modelId: String, twoStem: Boolean = false) {
             SeparationState.status.value = SeparationStatus.Running("Brano", "Avvio", 0f)
             context.startForegroundService(
                 Intent(context, SeparationService::class.java)
                     .putExtra(EXTRA_URI, uri.toString())
                     .putExtra(EXTRA_MODEL, modelId)
+                    .putExtra(EXTRA_TWO, twoStem)
             )
         }
 

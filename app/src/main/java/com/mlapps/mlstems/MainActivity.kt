@@ -93,8 +93,8 @@ fun App(vm: AppViewModel = viewModel()) {
             is Screen.NewTrack -> {
                 val ctx = androidx.compose.ui.platform.LocalContext.current
                 NewTrackScreen(vm, s.uri, m, onBack = { screen = Screen.Home }, onModels = { screen = Screen.Models },
-                    onStart = { modelId ->
-                        SeparationService.start(ctx, s.uri, modelId)
+                    onStart = { modelId, two ->
+                        SeparationService.start(ctx, s.uri, modelId, two)
                         screen = Screen.Processing
                     })
             }

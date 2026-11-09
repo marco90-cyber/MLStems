@@ -22,9 +22,11 @@ class SpleeterEngine(
     private val threads: Int = 4,
     private val prefix: String = "spleeter4_",
     private val configure: (OrtSession.SessionOptions) -> Unit = {},
+    /** Solo voce + strumentale: gira la sola rete della voce (circa 4 volte più veloce). */
+    private val twoStem: Boolean = false,
 ) : StemEngine {
 
-    override val sources = listOf("vocals", "drums", "bass", "other")
+    override val sources = if (twoStem) listOf("vocals", "accompaniment") else listOf("vocals", "drums", "bass", "other")
 
     private val fft = Fft(NFFT)
     private val window = DoubleArray(NFFT) { 0.5 * (1.0 - cos(2.0 * PI * it / NFFT)) }
@@ -40,7 +42,7 @@ class SpleeterEngine(
         val env = OrtEnvironment.getEnvironment()
 
         val options = OrtSession.SessionOptions().apply { setIntraOpNumThreads(threads); configure(this) }
-        val sessions = sources.map { env.createSession(File(dir, "$prefix$it.onnx").absolutePath, options) }
+        val sessions = (if (twoStem) listOf("vocals") else sources).map { env.createSession(File(dir, "$prefix$it.onnx").absolutePath, options) }
         try {
             val cap = T * HOP + NFFT
             val acc = Array(nStems) { Array(2) { FloatArray(cap) } }
@@ -81,7 +83,7 @@ class SpleeterEngine(
 
                 // stime delle quattro reti
                 OnnxTensor.createTensor(env, FloatBuffer.wrap(mag), longArrayOf(2, 1, T.toLong(), F.toLong())).use { input ->
-                    for (s in 0 until nStems) {
+                    for (s in sessions.indices) {
                         sessions[s].run(mapOf("x" to input)).use { res ->
                             val buf = (res.get("y").get() as OnnxTensor).floatBuffer.duplicate()
                             buf.position(0)
@@ -93,22 +95,39 @@ class SpleeterEngine(
                 // maschere, iSTFT e somma con sovrapposizione
                 for (c in 0 until 2) for (t in 0 until nf) {
                     val eo = (c * T + t) * F
-                    for (f in 0 until F) {
+                    if (!twoStem) for (f in 0 until F) {
                         var sum = EPS
                         for (s in 0 until nStems) { val e = est[s][eo + f].toDouble(); sum += e * e }
                         sumsq[f] = sum
                     }
                     val frameStart = (a + t) * HOP - base
-                    for (s in 0 until nStems) {
+                    if (twoStem) {
+                        // maschera della voce con la sola rete della voce: il resto del segnale è lo strumentale
                         var mean = 0.0
                         for (f in 0 until F) {
-                            val e = est[s][eo + f].toDouble()
-                            val m = (e * e + EPS / nStems) / sumsq[f]
-                            mask[s][f] = m
+                            val x = mag[eo + f].toDouble()
+                            val v = min(est[0][eo + f].toDouble(), x)
+                            val r = x - v
+                            val m = (v * v + EPS) / (v * v + r * r + 2 * EPS)
+                            mask[0][f] = m
                             mean += m
                         }
                         mean /= F
-                        for (f in F until BINS) mask[s][f] = mean
+                        for (f in F until BINS) mask[0][f] = mean
+                        for (f in 0 until BINS) mask[1][f] = 1.0 - mask[0][f]
+                    }
+                    for (s in 0 until nStems) {
+                        if (!twoStem) {
+                            var mean = 0.0
+                            for (f in 0 until F) {
+                                val e = est[s][eo + f].toDouble()
+                                val m = (e * e + EPS / nStems) / sumsq[f]
+                                mask[s][f] = m
+                                mean += m
+                            }
+                            mean /= F
+                            for (f in F until BINS) mask[s][f] = mean
+                        }
 
                         for (f in 0 until BINS) {
                             val m = mask[s][f]

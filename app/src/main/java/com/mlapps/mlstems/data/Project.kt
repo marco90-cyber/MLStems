@@ -91,8 +91,8 @@ class ProjectRepository(private val context: Context) {
     /** URI di un file del progetto (null se manca). */
     fun fileUri(id: String, name: String): Uri? = cache[id]?.folder?.findFile(name)?.uri
 
-    fun findByHash(hash: String, modelId: String): Project? =
-        list().firstOrNull { it.sourceHash == hash && it.modelId == modelId }
+    fun findByHash(hash: String, modelId: String, stemCount: Int = 0): Project? =
+        list().firstOrNull { it.sourceHash == hash && it.modelId == modelId && (stemCount == 0 || it.stems.size == stemCount) }
 
     // ── scrittura ──
 

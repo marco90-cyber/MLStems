@@ -87,6 +87,7 @@ fun stemLabel(source: String) = when (source) {
     "bass" -> "Basso"
     "other" -> "Altro"
     "vocals" -> "Voce"
+    "accompaniment" -> "Strumentale"
     "guitar" -> "Chitarra"
     "piano" -> "Pianoforte"
     else -> source.replaceFirstChar { it.uppercase() }
