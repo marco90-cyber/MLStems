@@ -50,6 +50,7 @@ sealed interface Screen {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.mlapps.mlstems.engine.CrashLog.install(this)
         setContent { MLTheme { App() } }
     }
 }

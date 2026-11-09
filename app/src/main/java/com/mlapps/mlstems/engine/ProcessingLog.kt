@@ -54,3 +54,41 @@ object ProcessingLog {
         return "heap ${(rt.totalMemory() - rt.freeMemory()) / mb} MB, nativa ${android.os.Debug.getNativeHeapAllocatedSize() / mb} MB, picco processo $peak"
     }
 }
+
+/** Registra i crash: quelli Java subito, quelli nativi / di memoria al prossimo avvio (Android 11+). */
+object CrashLog {
+    fun install(ctx: Context) {
+        val app = ctx.applicationContext
+        val old = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            runCatching { ProcessingLog.add(app, "CRASH nel thread ${t.name}: ${android.util.Log.getStackTraceString(e).take(3000)}") }
+            old?.uncaughtException(t, e)
+        }
+        if (Build.VERSION.SDK_INT >= 30) runCatching { logPreviousExits(app) }
+    }
+
+    @android.annotation.SuppressLint("NewApi")
+    private fun logPreviousExits(ctx: Context) {
+        val prefs = ctx.getSharedPreferences("crashlog", 0)
+        val last = prefs.getLong("last", 0L)
+        val am = ctx.getSystemService(ActivityManager::class.java)
+        val exits = am.getHistoricalProcessExitReasons(ctx.packageName, 0, 8).filter { it.timestamp > last }
+        for (x in exits.sortedBy { it.timestamp }) {
+            val reason = when (x.reason) {
+                android.app.ApplicationExitInfo.REASON_CRASH -> "crash Java"
+                android.app.ApplicationExitInfo.REASON_CRASH_NATIVE -> "crash NATIVO"
+                android.app.ApplicationExitInfo.REASON_LOW_MEMORY -> "memoria esaurita (chiusa da Android)"
+                android.app.ApplicationExitInfo.REASON_ANR -> "app bloccata (ANR)"
+                android.app.ApplicationExitInfo.REASON_SIGNALED -> "segnale ${x.status}"
+                android.app.ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "uso eccessivo di risorse"
+                android.app.ApplicationExitInfo.REASON_USER_REQUESTED, android.app.ApplicationExitInfo.REASON_USER_STOPPED -> "chiusa dall'utente"
+                else -> null
+            } ?: continue                                    // uscite normali: non servono
+            val trace = if (x.reason == android.app.ApplicationExitInfo.REASON_CRASH_NATIVE || x.reason == android.app.ApplicationExitInfo.REASON_ANR)
+                runCatching { x.traceInputStream?.bufferedReader()?.use { it.readText() }?.take(2500) }.getOrNull() else null
+            ProcessingLog.add(ctx, "Chiusura precedente (${SimpleDateFormat("HH:mm:ss", Locale.ITALY).format(Date(x.timestamp))}): $reason · ${x.description.orEmpty()}" +
+                (if (trace != null) "\n$trace" else ""))
+        }
+        prefs.edit().putLong("last", System.currentTimeMillis()).apply()
+    }
+}
