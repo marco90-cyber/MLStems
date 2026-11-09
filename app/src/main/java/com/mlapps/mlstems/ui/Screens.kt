@@ -74,6 +74,8 @@ import com.mlapps.mlstems.player.Exporter
 import com.mlapps.mlstems.player.MultiStemPlayer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -375,14 +377,15 @@ fun MixerScreen(vm: AppViewModel, projectId: String, modifier: Modifier, onBack:
                 val t0 = System.currentTimeMillis()
                 val part = FloatArray(u.size)
                 // più stem insieme: la decodifica di ognuno è indipendente
-                val w = kotlinx.coroutines.coroutineScope {
-                    u.mapIndexed { i, uri ->
-                        kotlinx.coroutines.async(Dispatchers.IO) {
-                            com.mlapps.mlstems.engine.StemCache.wavFor(ctx, projectId, uri, project.stems[i].file) { f ->
+                val w: List<java.io.File> = kotlinx.coroutines.coroutineScope {
+                    val jobs: List<kotlinx.coroutines.Deferred<java.io.File>> = u.mapIndexed { i, uri ->
+                        async(Dispatchers.IO) {
+                            com.mlapps.mlstems.engine.StemCache.wavFor(ctx, projectId, uri, project.stems[i].file) { f: Float ->
                                 part[i] = f; prep = part.sum() / u.size
                             }
                         }
-                    }.map { it.await() }
+                    }
+                    jobs.awaitAll()
                 }
                 val ms = System.currentTimeMillis() - t0
                 if (ms > 1500) com.mlapps.mlstems.engine.ProcessingLog.add(ctx, "Preparazione mixer: ${u.size} stem in $ms ms")
