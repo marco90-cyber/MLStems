@@ -64,7 +64,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         revision.update { it + 1 }
     }
 
-    fun deleteProject(p: Project) = io {
+    fun deleteProject(p: Project, alsoFolder: Boolean = false) = io {
+        if (alsoFolder && p.folder.isNotEmpty()) {
+            val n = runCatching { com.mlapps.mlstems.data.ProjectMirror.delete(getApplication<Application>(), p.folder) }.getOrDefault(0)
+            if (n == 0) message.value = "Non ho potuto cancellare la cartella in Download: eliminala a mano"
+        }
         repo.delete(p.id)
         refreshProjects()
     }

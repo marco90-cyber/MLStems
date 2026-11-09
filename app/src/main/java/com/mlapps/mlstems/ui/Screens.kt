@@ -105,6 +105,27 @@ private fun fmt(ms: Long): String = "%d:%02d".format(ms / 60000, ms / 1000 % 60)
 fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit, onModels: () -> Unit, onSettings: () -> Unit, onOpen: (String) -> Unit) {
     val projects by vm.projects.collectAsState()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(onPick) }
+    var toDelete by remember { mutableStateOf<com.mlapps.mlstems.data.Project?>(null) }
+    toDelete?.let { p ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { toDelete = null },
+            title = { Text("Eliminare “${p.title}”?") },
+            text = {
+                Text(
+                    if (p.folder.isNotEmpty()) "Puoi togliere il brano solo dall'app e tenere i file in Download/MLStems/${p.folder}, oppure cancellare anche quelli."
+                    else "Il brano sparisce dall'app. Non ha una copia in Download.",
+                )
+            },
+            confirmButton = {
+                androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.End) {
+                    androidx.compose.material3.TextButton(onClick = { vm.deleteProject(p, false); toDelete = null }) { Text("Elimina solo dall'app") }
+                    if (p.folder.isNotEmpty())
+                        androidx.compose.material3.TextButton(onClick = { vm.deleteProject(p, true); toDelete = null }) { Text("Elimina anche la cartella") }
+                }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { toDelete = null }) { Text("Annulla") } },
+        )
+    }
 
     Column(modifier.fillMaxSize()) {
         Bar("MLStems", null) {
@@ -152,7 +173,7 @@ fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit, onMo
                                     Modifier.width(22.dp).hgt(6.dp).background(stemColor(it.name), androidx.compose.foundation.shape.RoundedCornerShape(50))) }
                             }
                         }
-                        IconButton(onClick = { vm.deleteProject(p) }) { Icon(Icons.Default.Delete, "Elimina") }
+                        IconButton(onClick = { toDelete = p }) { Icon(Icons.Default.Delete, "Elimina") }
                     }
                 }
             }

@@ -20,6 +20,7 @@ import com.mlapps.mlstems.data.Family
 import com.mlapps.mlstems.data.ModelCatalog
 import com.mlapps.mlstems.data.ModelManager
 import com.mlapps.mlstems.data.Project
+import com.mlapps.mlstems.data.ProjectMirror
 import com.mlapps.mlstems.data.ProjectRepository
 import com.mlapps.mlstems.data.StemTrack
 import kotlinx.coroutines.CoroutineScope
@@ -122,8 +123,12 @@ class SeparationService : Service() {
             }
             writers.forEach { it.close() }
             val tracks = engine.sources.mapIndexed { i, name -> StemTrack(name = stemLabel(name), file = "stem_$i.flac") }
-            repo.save(Project(id, title, hash, modelId, tracks, audio.frames * 1000L / SAMPLE_RATE,
-                decodeMs = decodeMs, separateMs = System.currentTimeMillis() - tSep, accel = if (useNpu) "NPU" else "CPU"))
+            var project = Project(id, title, hash, modelId, tracks, audio.frames * 1000L / SAMPLE_RATE,
+                decodeMs = decodeMs, separateMs = System.currentTimeMillis() - tSep, accel = if (useNpu) "NPU" else "CPU")
+            repo.save(project)
+            update("Salvo in Download/MLStems", 0.99f)
+            runCatching { ProjectMirror.write(this, project, repo.dir(id)) }   // se manca spazio il progetto resta comunque nell'app
+                .onSuccess { project = project.copy(folder = it); repo.save(project) }
             state.value = SeparationStatus.Done(id)
             notifyResult(this, 3, "$title: separazione completata")
         } catch (e: kotlinx.coroutines.CancellationException) {
