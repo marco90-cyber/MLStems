@@ -133,6 +133,19 @@ fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit,  onM
             androidx.compose.material3.TextButton(onClick = onModels) { Text("Modelli") }
             IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Impostazioni") }
         }
+        val prepNow by vm.preparing.collectAsState()
+        prepNow?.let { pr ->
+            Card(Modifier.fillMaxWidth().padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Preparo “${pr.title}” per l'ascolto", style = MaterialTheme.typography.titleMedium)
+                    LinearProgressIndicator(progress = { pr.progress }, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${(pr.progress * 100).toInt()}%", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        OutlinedButton(onClick = { vm.cancelPrepare() }) { Text("Annulla") }
+                    }
+                }
+            }
+        }
         loading?.let { l ->
             Card(Modifier.fillMaxWidth().padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Column(Modifier.padding(16.dp)) {
@@ -365,34 +378,19 @@ fun ProcessingScreen(modifier: Modifier, onDone: (String) -> Unit, onClose: () -
 @Composable
 fun MixerScreen(vm: AppViewModel, projectId: String, modifier: Modifier, onBack: () -> Unit) {
     val ctx = LocalContext.current
-    val project = remember(projectId) { vm.repo.load(projectId) }
-    var wavs by remember(projectId) { mutableStateOf<List<java.io.File>?>(null) }
-    var uris by remember(projectId) { mutableStateOf<List<android.net.Uri>>(emptyList()) }
-    var failed by remember(projectId) { mutableStateOf(false) }
-    var prep by remember(projectId) { mutableStateOf(0f) }
-    LaunchedEffect(projectId) {
-        runCatching {
-            withContext(Dispatchers.IO) {
-                val u = project.stems.map { vm.repo.fileUri(projectId, it.file) ?: error("manca ${it.file}") }
-                val t0 = System.currentTimeMillis()
-                val part = FloatArray(u.size)
-                // più stem insieme: la decodifica di ognuno è indipendente
-                val w: List<java.io.File> = kotlinx.coroutines.coroutineScope {
-                    val jobs: List<kotlinx.coroutines.Deferred<java.io.File>> = u.mapIndexed { i, uri ->
-                        async(Dispatchers.IO) {
-                            com.mlapps.mlstems.engine.StemCache.wavFor(ctx, projectId, uri, project.stems[i].file) { f: Float ->
-                                part[i] = f; prep = part.sum() / u.size
-                            }
-                        }
-                    }
-                    jobs.awaitAll()
-                }
-                val ms = System.currentTimeMillis() - t0
-                if (ms > 1500) com.mlapps.mlstems.engine.ProcessingLog.add(ctx, "Preparazione mixer: ${u.size} stem in $ms ms")
-                uris = u; w
-            }
-        }.onSuccess { wavs = it }.onFailure { failed = true }
+    DisposableEffect(projectId) {
+        vm.watching = projectId
+        vm.prepare(projectId)
+        onDispose { if (vm.watching == projectId) vm.watching = null }
     }
+    val preparedMap by vm.prepared.collectAsState()
+    val preparing by vm.preparing.collectAsState()
+    val failedSet by vm.prepFailed.collectAsState()
+    val failed = projectId in failedSet
+    val done = preparedMap[projectId]
+    val prep = preparing?.takeIf { it.projectId == projectId }?.progress ?: 0f
+    val wavs = done?.files
+    val uris = done?.uris ?: emptyList()
     val ready = wavs
     if (failed) {
         Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -405,6 +403,13 @@ fun MixerScreen(vm: AppViewModel, projectId: String, modifier: Modifier, onBack:
             CircularProgressIndicator()
             Text("Preparo le tracce per l'ascolto…", Modifier.padding(top = 16.dp))
             LinearProgressIndicator(progress = { prep }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+            Text("${(prep * 100).toInt()}%", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium)
+            Text("Puoi uscire: la preparazione continua in background e ti avviso quando è pronto.",
+                Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodySmall)
+            Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onBack) { Text("Continua in background") }
+                OutlinedButton(onClick = { vm.cancelPrepare(); onBack() }) { Text("Annulla") }
+            }
         }
     } else MixerContent(vm, projectId, ready, uris, modifier, onBack)
 }
