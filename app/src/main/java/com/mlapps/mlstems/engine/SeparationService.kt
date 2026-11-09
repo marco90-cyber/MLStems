@@ -91,7 +91,7 @@ class SeparationService : Service() {
 
             val mm = ModelManager(this)
             check(mm.isInstalled(model)) { "Modello non installato" }
-            val threads = Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
+            val threads = Settings.threads(this)
             // NPU sperimentale (solo build NPU, attivata dall'utente, solo Spleeter): se non parte si torna alla CPU
             val prefs = getSharedPreferences("settings", 0)
             val variant = prefs.getString("npu_variant", "") ?: ""

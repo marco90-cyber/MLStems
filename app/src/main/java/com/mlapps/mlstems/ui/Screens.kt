@@ -102,13 +102,14 @@ private fun fmt(ms: Long): String = "%d:%02d".format(ms / 60000, ms / 1000 % 60)
 // ───────────────────────── Home: elenco progetti ─────────────────────────
 
 @Composable
-fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit, onModels: () -> Unit, onOpen: (String) -> Unit) {
+fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit, onModels: () -> Unit, onSettings: () -> Unit, onOpen: (String) -> Unit) {
     val projects by vm.projects.collectAsState()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(onPick) }
 
     Column(modifier.fillMaxSize()) {
         Bar("MLStems", null) {
-            IconButton(onClick = onModels) { Icon(Icons.Default.Settings, "Modelli") }
+            androidx.compose.material3.TextButton(onClick = onModels) { Text("Modelli") }
+            IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Impostazioni") }
         }
         if (projects.isEmpty()) {
             Column(Modifier.fillMaxWidth().padding(32.dp).weight(1f), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -374,6 +375,16 @@ private fun MixerContent(vm: AppViewModel, projectId: String, files: List<java.i
                         withContext(Dispatchers.Main) { exporting = false; vm.message.value = "Mix salvato in Download/MLStems" }
                     }
                 }) { Text("Esporta mix") }
+                val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+                    if (uri != null) {
+                        exporting = true
+                        scope.launch(Dispatchers.IO) {
+                            val ok = runCatching { ctx.contentResolver.openOutputStream(uri)!!.use { vm.repo.exportTo(projectId, it) } }.isSuccess
+                            withContext(Dispatchers.Main) { exporting = false; vm.message.value = if (ok) "Progetto salvato nel file" else "Salvataggio non riuscito" }
+                        }
+                    }
+                }
+                OutlinedButton(enabled = !exporting, onClick = { saver.launch("${project.title}.mlstems") }) { Text("Salva progetto") }
                 OutlinedButton(enabled = !exporting, onClick = {
                     exporting = true
                     scope.launch(Dispatchers.IO) {

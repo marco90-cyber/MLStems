@@ -28,7 +28,8 @@ import com.mlapps.mlstems.engine.SeparationStatus
 import com.mlapps.mlstems.ui.AppViewModel
 import com.mlapps.mlstems.ui.HomeScreen
 import com.mlapps.mlstems.ui.MixerScreen
-import com.mlapps.mlstems.ui.MLStemsTheme
+import com.mlapps.mlstems.ui.SettingsScreen
+import com.marco.mltheme.MLTheme
 import com.mlapps.mlstems.ui.ModelsScreen
 import com.mlapps.mlstems.ui.NewTrackScreen
 import com.mlapps.mlstems.ui.ProcessingScreen
@@ -36,6 +37,7 @@ import com.mlapps.mlstems.ui.ProcessingScreen
 sealed interface Screen {
     data object Home : Screen
     data object Models : Screen
+    data object Settings : Screen
     data class NewTrack(val uri: Uri) : Screen
     data object Processing : Screen
     data class Mixer(val projectId: String) : Screen
@@ -44,7 +46,7 @@ sealed interface Screen {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MLStemsTheme { App() } }
+        setContent { MLTheme { App() } }
     }
 }
 
@@ -76,7 +78,9 @@ fun App(vm: AppViewModel = viewModel()) {
             Screen.Home -> HomeScreen(vm, m,
                 onPick = { screen = Screen.NewTrack(it) },
                 onModels = { screen = Screen.Models },
+                onSettings = { screen = Screen.Settings },
                 onOpen = { screen = Screen.Mixer(it) })
+            Screen.Settings -> SettingsScreen(vm, onBack = { screen = Screen.Home })
             Screen.Models -> ModelsScreen(vm, m, onBack = { screen = Screen.Home })
             is Screen.NewTrack -> {
                 val ctx = androidx.compose.ui.platform.LocalContext.current

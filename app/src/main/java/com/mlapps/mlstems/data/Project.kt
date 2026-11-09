@@ -59,4 +59,42 @@ class ProjectRepository(private val context: Context) {
         dir(id).deleteRecursively()
         com.mlapps.mlstems.engine.StemCache.clear(context, id)
     }
+
+    /** Salva il progetto in un unico file (zip senza compressione: project.json + gli stem). */
+    fun exportTo(id: String, out: java.io.OutputStream) {
+        java.util.zip.ZipOutputStream(java.io.BufferedOutputStream(out, 1 shl 16)).use { zip ->
+            zip.setLevel(0)                       // FLAC è già compresso
+            dir(id).listFiles().orEmpty().filter { it.isFile }.forEach { f ->
+                zip.putNextEntry(java.util.zip.ZipEntry(f.name))
+                f.inputStream().use { it.copyTo(zip) }
+                zip.closeEntry()
+            }
+        }
+    }
+
+    /** Legge un file progetto. Restituisce il progetto e se era già presente (stesso brano e modello). */
+    fun importFrom(input: java.io.InputStream): Pair<Project, Boolean> {
+        val tmp = File(context.cacheDir, "import-${System.nanoTime()}").apply { mkdirs() }
+        try {
+            java.util.zip.ZipInputStream(java.io.BufferedInputStream(input)).use { zip ->
+                var e = zip.nextEntry
+                while (e != null) {
+                    val name = File(e.name).name          // niente percorsi: evita file fuori cartella
+                    if (!e.isDirectory && name.isNotEmpty()) File(tmp, name).outputStream().use { zip.copyTo(it) }
+                    e = zip.nextEntry
+                }
+            }
+            val project = json.decodeFromString<Project>(File(tmp, "project.json").readText())
+            require(project.stems.isNotEmpty() && project.stems.all { File(tmp, File(it.file).name).exists() }) { "File progetto incompleto" }
+            findByHash(project.sourceHash, project.modelId)?.let { return it to true }
+            val id = java.util.UUID.randomUUID().toString()
+            val target = dir(id)
+            tmp.listFiles().orEmpty().forEach { it.copyTo(File(target, it.name), overwrite = true) }
+            val saved = project.copy(id = id, stems = project.stems.map { it.copy(file = File(it.file).name) })
+            save(saved)
+            return saved to false
+        } finally {
+            tmp.deleteRecursively()
+        }
+    }
 }
