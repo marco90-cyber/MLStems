@@ -52,6 +52,7 @@ class SeparationService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_CANCEL) {
+            runId++                                  // l'elaborazione in corso se ne accorge e si ferma
             job?.cancel()
             SeparationState.status.value = SeparationStatus.Idle
             stopSelf()
@@ -60,11 +61,12 @@ class SeparationService : Service() {
         val uri = Uri.parse(intent!!.getStringExtra(EXTRA_URI)!!)
         val modelId = intent.getStringExtra(EXTRA_MODEL)!!
         startForeground(1, notification("Preparazione…", 0f), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        job = scope.launch { run(uri, modelId) }
+        val mine = ++runId
+        job = scope.launch { run(uri, modelId, mine) }
         return START_NOT_STICKY
     }
 
-    private fun run(uri: Uri, modelId: String) {
+    private fun run(uri: Uri, modelId: String, mine: Int) {
         val state = SeparationState.status
         var title = "Brano"
         val wake = acquireWakeLock(this, "separation")   // CPU attiva anche a schermo spento
@@ -75,6 +77,7 @@ class SeparationService : Service() {
             title = displayName(uri)
 
             fun update(stage: String, p: Float) {
+                if (mine != runId) throw kotlinx.coroutines.CancellationException("annullato")
                 state.value = SeparationStatus.Running(title, stage, p)
                 getSystemService(NotificationManager::class.java).notify(1, notification("$title · $stage", p))
             }
@@ -85,14 +88,18 @@ class SeparationService : Service() {
                 state.value = SeparationStatus.Done(it.id); return
             }
 
+            ProcessingLog.add(this, "──── Nuova elaborazione: \"$title\" con $modelId")
+            ProcessingLog.add(this, "App ${appVersion()} · ${ProcessingLog.device(this)}")
             update("Lettura audio", 0f)
             val t0 = System.currentTimeMillis()
             val audio = AudioDecoder.decode(this, uri) { update("Lettura audio", it * 0.1f) }
             val decodeMs = System.currentTimeMillis() - t0
+            ProcessingLog.add(this, "Lettura: ${audio.frames * 1000L / SAMPLE_RATE / 1000} s di audio in $decodeMs ms · ${ProcessingLog.memory()}")
 
             val mm = ModelManager(this)
             check(mm.isInstalled(model)) { "Modello non installato" }
             val threads = Settings.threads(this)
+            ProcessingLog.add(this, "Modello ${model.name} (${model.family}), thread $threads, acceleratore ${if (Accel.available) "disponibile" else "assente"}")
             // NPU sperimentale (solo build NPU, attivata dall'utente, solo Spleeter): se non parte si torna alla CPU
             val prefs = getSharedPreferences("settings", 0)
             val variant = prefs.getString("npu_variant", "") ?: ""
@@ -116,7 +123,14 @@ class SeparationService : Service() {
                     override fun write(stem: Int, left: FloatArray, right: FloatArray, count: Int) =
                         writers[stem].write(left, right, count)
                 }
-                engine.separate(audio.left, audio.right, sink) { update("Separazione", 0.1f + it * 0.9f) }
+                var nextMark = 0.25f
+                engine.separate(audio.left, audio.right, sink) {
+                    update("Separazione", 0.1f + it * 0.9f)
+                    if (it >= nextMark) {
+                        ProcessingLog.add(this, "  ${(it * 100).toInt()}% dopo ${(System.currentTimeMillis() - tSep) / 1000.0} s · ${ProcessingLog.memory()}")
+                        nextMark += 0.25f
+                    }
+                }
             } catch (e: Throwable) {
                 writers.forEach { runCatching { it.close() } }
                 repo.deleteFolder(folder)
@@ -127,19 +141,27 @@ class SeparationService : Service() {
             val saved = repo.finish(folder, Project(folder.name!!, title, hash, modelId, tracks, audio.frames * 1000L / SAMPLE_RATE,
                 decodeMs = decodeMs, separateMs = System.currentTimeMillis() - tSep, accel = if (useNpu) "NPU" else "CPU"))
             val id = saved.id
+            ProcessingLog.add(this, "Fine: separazione ${saved.separateMs} ms = ×${"%.2f".format(saved.realtimeFactor)} tempo reale (${saved.accel}) · ${ProcessingLog.memory()}")
             state.value = SeparationStatus.Done(id)
             notifyResult(this, 3, "$title: separazione completata")
         } catch (e: kotlinx.coroutines.CancellationException) {
+            ProcessingLog.add(this, "Annullata dall'utente")
             throw e
         } catch (e: Throwable) {
+            ProcessingLog.add(this, "ERRORE: ${e.stackTraceToString().take(2500)}")
             state.value = SeparationStatus.Error(e.message ?: e.javaClass.simpleName)
             notifyResult(this, 3, "$title: separazione non riuscita")
         } finally {
             if (wake.isHeld) wake.release()
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            if (mine == runId) {                  // se nel frattempo ne è partita un'altra, non fermare il servizio
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
         }
     }
+
+    private fun appVersion(): String =
+        runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "?"
 
     private fun sha256(uri: Uri): String {
         val md = MessageDigest.getInstance("SHA-256")
@@ -173,6 +195,7 @@ class SeparationService : Service() {
     }
 
     companion object {
+        @Volatile private var runId = 0
         private const val CHANNEL = "separation"
         private const val EXTRA_URI = "uri"
         private const val EXTRA_MODEL = "model"

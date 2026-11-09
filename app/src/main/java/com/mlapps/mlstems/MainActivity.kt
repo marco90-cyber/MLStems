@@ -29,6 +29,8 @@ import com.mlapps.mlstems.ui.AppViewModel
 import com.mlapps.mlstems.ui.HomeScreen
 import com.mlapps.mlstems.ui.MixerScreen
 import com.mlapps.mlstems.ui.SettingsScreen
+import com.mlapps.mlstems.ui.LogScreen
+import com.mlapps.mlstems.ui.InfoScreen
 import com.marco.mltheme.MLTheme
 import com.mlapps.mlstems.ui.ModelsScreen
 import com.mlapps.mlstems.ui.NewTrackScreen
@@ -38,6 +40,8 @@ sealed interface Screen {
     data object Home : Screen
     data object Models : Screen
     data object Settings : Screen
+    data object Log : Screen
+    data object Info : Screen
     data class NewTrack(val uri: Uri) : Screen
     data object Processing : Screen
     data class Mixer(val projectId: String) : Screen
@@ -46,7 +50,29 @@ sealed interface Screen {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        takeAudio(intent)
         setContent { MLTheme { App() } }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        takeAudio(intent)
+    }
+
+    /** "Apri con MLStems" o "Condividi" da un'altra app: apre la schermata del nuovo brano. */
+    private fun takeAudio(i: android.content.Intent?) {
+        val uri: Uri? = when (i?.action) {
+            android.content.Intent.ACTION_VIEW -> i.data
+            android.content.Intent.ACTION_SEND ->
+                if (Build.VERSION.SDK_INT >= 33) i.getParcelableExtra(android.content.Intent.EXTRA_STREAM, Uri::class.java)
+                else @Suppress("DEPRECATION") i.getParcelableExtra(android.content.Intent.EXTRA_STREAM)
+            else -> null
+        }
+        if (uri != null) incoming.value = uri
+    }
+
+    companion object {
+        val incoming = mutableStateOf<Uri?>(null)
     }
 }
 
@@ -64,6 +90,10 @@ fun App(vm: AppViewModel = viewModel()) {
         vm.refreshProjects()
         if (SeparationState.status.value is SeparationStatus.Running) screen = Screen.Processing
     }
+    val incoming = MainActivity.incoming.value
+    LaunchedEffect(incoming) {
+        if (incoming != null) { screen = Screen.NewTrack(incoming); MainActivity.incoming.value = null }
+    }
     LaunchedEffect(message) {
         message?.let { snackbar.showSnackbar(it); vm.message.value = null }
     }
@@ -80,7 +110,10 @@ fun App(vm: AppViewModel = viewModel()) {
                 onModels = { screen = Screen.Models },
                 onSettings = { screen = Screen.Settings },
                 onOpen = { screen = Screen.Mixer(it) })
-            Screen.Settings -> SettingsScreen(vm, onBack = { screen = Screen.Home })
+            Screen.Settings -> SettingsScreen(vm, onBack = { screen = Screen.Home },
+                onLog = { screen = Screen.Log }, onInfo = { screen = Screen.Info })
+            Screen.Log -> LogScreen(vm, onBack = { screen = Screen.Settings })
+            Screen.Info -> InfoScreen(vm, onBack = { screen = Screen.Settings })
             Screen.Models -> ModelsScreen(vm, m, onBack = { screen = Screen.Home })
             is Screen.NewTrack -> {
                 val ctx = androidx.compose.ui.platform.LocalContext.current

@@ -279,10 +279,32 @@ fun NewTrackScreen(vm: AppViewModel, uri: Uri, modifier: Modifier, onBack: () ->
     val installed by vm.installed.collectAsState()
     val available = ModelCatalog.all.filter { it.id in installed }
     var selected by remember(installed) { mutableStateOf(available.firstOrNull()?.id) }
+    val ctx = LocalContext.current
+    var durationMs by remember(uri) { mutableStateOf(0L) }
+    LaunchedEffect(uri) {
+        durationMs = withContext(Dispatchers.IO) {
+            runCatching {
+                val r = android.media.MediaMetadataRetriever()
+                try { r.setDataSource(ctx, uri); r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLong() ?: 0L }
+                finally { r.release() }
+            }.getOrDefault(0L)
+        }
+    }
+    val long = durationMs > 6 * 60_000L
 
     Column(modifier.fillMaxSize()) {
         Bar("Nuovo brano", onBack)
         Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
+            if (long) Card(Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Brano lungo: ${durationMs / 60000} min", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Oltre i 6 minuti l'elaborazione richiede molto tempo e molta memoria, e potrebbe non riuscire. " +
+                            "Per brani lunghi conviene un modello veloce (Spleeter) e tenere il telefono in carica.",
+                        Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
             Text("Scegli il modello", style = MaterialTheme.typography.titleMedium)
             if (available.isEmpty()) {
                 Text("Nessun modello installato.", Modifier.padding(vertical = 8.dp))
@@ -298,7 +320,7 @@ fun NewTrackScreen(vm: AppViewModel, uri: Uri, modifier: Modifier, onBack: () ->
                 }
             }
             Spacer(Modifier.height(16.dp))
-            Button(onClick = { onStart(selected!!) }, enabled = selected != null) { Text("Avvia separazione") }
+            Button(onClick = { onStart(selected!!) }, enabled = selected != null) { Text(if (long) "Avvia comunque" else "Avvia separazione") }
             Text(
                 "Se hai già elaborato questo brano con lo stesso modello, il progetto salvato si apre subito.",
                 Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodySmall,

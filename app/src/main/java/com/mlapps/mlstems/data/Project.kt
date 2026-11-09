@@ -138,6 +138,9 @@ class ProjectRepository(private val context: Context) {
         com.mlapps.mlstems.engine.StemCache.clear(context, id)
     }
 
+    /** Spazio occupato dai brani nella cartella dei progetti. */
+    fun usedBytes(): Long = root()?.listFiles().orEmpty().filter { it.isDirectory }.sumOf { d -> d.listFiles().sumOf { it.length() } }
+
     fun deleteFolder(folder: DocumentFile) { runCatching { folder.delete() } }
 
     // ── file .mlstems ──

@@ -22,7 +22,7 @@ import kotlinx.coroutines.withContext
 
 /** Impostazioni: tema condiviso MLTheme, numero di thread, progetti da file. */
 @Composable
-fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit) {
+fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit, onLog: () -> Unit, onInfo: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var threads by remember { mutableStateOf(Settings.threads(ctx)) }
@@ -43,6 +43,10 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit) {
                 range = 1f..Settings.maxThreads.toFloat(),
                 steps = (Settings.maxThreads - 2).coerceAtLeast(0),
             ) { threads = it.toInt(); Settings.setThreads(ctx, threads) }
+        }
+        MLGroup("Diagnostica") {
+            MLNavRow("Log di elaborazione", "Tempi e memoria di ogni brano: condividilo per migliorare l'app") { onLog() }
+            MLNavRow("Info e spazio", "Cache, licenze dei modelli") { onInfo() }
         }
         MLGroup("Progetti") {
             MLNavRow("Cartella dei progetti", library ?: "Non scelta: tocca per sceglierla") { tree.launch(null) }
