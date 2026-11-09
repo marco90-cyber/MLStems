@@ -45,6 +45,38 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    data class Loading(val label: String, val progress: Float)
+
+    /** Caricamento di un file progetto in corso (null se nessuno). */
+    val loading = MutableStateFlow<Loading?>(null)
+    private val cancelLoad = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    fun loadProject(uri: Uri) {
+        if (loading.value != null) return
+        cancelLoad.set(false)
+        loading.value = Loading("Apro il file…", 0f)
+        io {
+            val app = getApplication<Application>()
+            val msg = try {
+                val size = app.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.SIZE), null, null, null)
+                    ?.use { if (it.moveToFirst()) it.getLong(0) else -1L } ?: -1L
+                val (p, existed) = app.contentResolver.openInputStream(uri)!!.use {
+                    repo.importFrom(it, size, { f -> loading.value = Loading("Carico il progetto", f) }, { cancelLoad.get() })
+                }
+                if (existed) "“${p.title}” era già presente" else "Progetto “${p.title}” caricato"
+            } catch (e: com.mlapps.mlstems.data.ImportCancelled) {
+                "Caricamento annullato"
+            } catch (e: Exception) {
+                "File progetto non valido"
+            }
+            loading.value = null
+            projects.value = repo.list()
+            message.value = msg
+        }
+    }
+
+    fun cancelLoading() = cancelLoad.set(true)
+
     fun refreshProjects() = io { projects.value = repo.list() }
 
     fun setLibrary(tree: Uri) = io {

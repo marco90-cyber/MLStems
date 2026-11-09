@@ -109,15 +109,8 @@ fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit,  onM
     val scope = rememberCoroutineScope()
     val library by vm.library.collectAsState()
     val treePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { it?.let(vm::setLibrary) }
-    val projectPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch(Dispatchers.IO) {
-            val msg = runCatching {
-                val (p, existed) = ctx.contentResolver.openInputStream(uri)!!.use { vm.repo.importFrom(it) }
-                if (existed) "“${p.title}” era già presente" else "Progetto “${p.title}” caricato"
-            }.getOrElse { "File progetto non valido" }
-            withContext(Dispatchers.Main) { vm.refreshProjects(); vm.message.value = msg }
-        }
-    }
+    val projectPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(vm::loadProject) }
+    val loading by vm.loading.collectAsState()
     var toDelete by remember { mutableStateOf<com.mlapps.mlstems.data.Project?>(null) }
     toDelete?.let { p ->
         androidx.compose.material3.AlertDialog(
@@ -137,6 +130,18 @@ fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit,  onM
         Bar("MLStems", null) {
             androidx.compose.material3.TextButton(onClick = onModels) { Text("Modelli") }
             IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Impostazioni") }
+        }
+        loading?.let { l ->
+            Card(Modifier.fillMaxWidth().padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(l.label, style = MaterialTheme.typography.titleMedium)
+                    LinearProgressIndicator(progress = { l.progress }, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${(l.progress * 100).toInt()}%", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        OutlinedButton(onClick = { vm.cancelLoading() }) { Text("Annulla") }
+                    }
+                }
+            }
         }
         if (library == null) {
             Card(Modifier.fillMaxWidth().padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
@@ -197,7 +202,7 @@ fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit,  onM
             }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End) {
-            OutlinedButton(onClick = { projectPicker.launch(arrayOf("*/*")) }) { Text("Carica un progetto") }
+            OutlinedButton(enabled = loading == null, onClick = { projectPicker.launch(arrayOf("*/*")) }) { Text("Carica un progetto") }
         }
         ExtendedFloatingActionButton(
             onClick = { if (library == null) treePicker.launch(null) else picker.launch(arrayOf("audio/*")) },

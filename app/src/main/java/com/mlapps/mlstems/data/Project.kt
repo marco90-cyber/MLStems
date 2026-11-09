@@ -35,6 +35,8 @@ data class Project(
     val realtimeFactor: Float get() = if (separateMs > 0) durationMs.toFloat() / separateMs else 0f
 }
 
+class ImportCancelled : Exception("Caricamento annullato")
+
 /**
  * I brani vivono nella cartella scelta dall'utente (di solito Download/MLStems): una sottocartella per brano
  * con project.json e un FLAC per ogni stem. Nessuna copia interna: reinstallando l'app basta indicare di nuovo la cartella.
@@ -154,34 +156,58 @@ class ProjectRepository(private val context: Context) {
     }
 
     /** Legge un file progetto nella cartella dei progetti. Restituisce il progetto e se era già presente. */
-    fun importFrom(input: java.io.InputStream): Pair<Project, Boolean> {
+    fun importFrom(
+        input: java.io.InputStream, totalBytes: Long = -1, onProgress: (Float) -> Unit = {}, cancelled: () -> Boolean = { false },
+    ): Pair<Project, Boolean> {
         val tmp = File(context.cacheDir, "import-${System.nanoTime()}").apply { mkdirs() }
         try {
+            val buf = ByteArray(1 shl 16)
+            var done = 0L
             java.util.zip.ZipInputStream(java.io.BufferedInputStream(input)).use { zip ->
                 var e = zip.nextEntry
                 while (e != null) {
                     val name = File(e.name).name          // niente percorsi: evita file fuori cartella
-                    if (!e.isDirectory && name.isNotEmpty()) File(tmp, name).outputStream().use { zip.copyTo(it) }
+                    if (!e.isDirectory && name.isNotEmpty()) File(tmp, name).outputStream().use { o ->
+                        while (true) {
+                            val n = zip.read(buf)
+                            if (n < 0) break
+                            o.write(buf, 0, n)
+                            done += n
+                            if (cancelled()) throw ImportCancelled()
+                            if (totalBytes > 0) onProgress((0.5f * done / totalBytes).coerceAtMost(0.5f))
+                        }
+                    }
                     e = zip.nextEntry
                 }
             }
             val project = json.decodeFromString<Project>(File(tmp, "project.json").readText())
             require(project.stems.isNotEmpty() && project.stems.all { File(tmp, File(it.file).name).exists() }) { "File progetto incompleto" }
             findByHash(project.sourceHash, project.modelId)?.let { return it to true }
-            return storeFrom(project, tmp) to false
+            return storeFrom(project, tmp, onProgress, cancelled) to false
         } finally {
             tmp.deleteRecursively()
         }
     }
 
     /** Copia i file di un progetto (da una cartella locale) nella cartella dei progetti. */
-    private fun storeFrom(project: Project, src: File): Project {
+    private fun storeFrom(project: Project, src: File, onProgress: (Float) -> Unit = {}, cancelled: () -> Boolean = { false }): Project {
         val folder = newFolder(project.title)
         try {
-            val stems = project.stems.map { st ->
+            val stems = project.stems.mapIndexed { i, st ->
                 val name = clean(st.name) + "." + File(st.file).extension
                 val doc = newFile(folder, name, if (name.endsWith("flac")) "audio/flac" else "audio/x-wav")
-                resolver.openOutputStream(doc.uri)!!.use { out -> File(src, File(st.file).name).inputStream().use { it.copyTo(out) } }
+                resolver.openOutputStream(doc.uri)!!.use { out ->
+                    File(src, File(st.file).name).inputStream().use { inp ->
+                        val b = ByteArray(1 shl 16)
+                        while (true) {
+                            val n = inp.read(b)
+                            if (n < 0) break
+                            out.write(b, 0, n)
+                            if (cancelled()) throw ImportCancelled()
+                        }
+                    }
+                }
+                onProgress(0.5f + 0.5f * (i + 1) / project.stems.size)
                 st.copy(file = doc.name ?: name)
             }
             return finish(folder, project.copy(stems = stems))

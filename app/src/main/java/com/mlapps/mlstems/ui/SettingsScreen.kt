@@ -28,15 +28,8 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit) {
     var threads by remember { mutableStateOf(Settings.threads(ctx)) }
 
     val opener = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch(Dispatchers.IO) {
-            val msg = runCatching {
-                val (p, existed) = ctx.contentResolver.openInputStream(uri)!!.use { vm.repo.importFrom(it) }
-                if (existed) "“${p.title}” era già presente" else "Progetto “${p.title}” caricato"
-            }.getOrElse { "File progetto non valido" }
-            withContext(Dispatchers.Main) { vm.refreshProjects(); vm.message.value = msg }
-        }
+        if (uri != null) { vm.loadProject(uri); onBack() }   // l'avanzamento si vede in Home
     }
-
     val tree = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { it?.let(vm::setLibrary) }
     val library by vm.library.collectAsState()
 
