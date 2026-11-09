@@ -3,6 +3,7 @@ package com.mlapps.mlstems.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,18 +37,8 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit) {
         }
     }
 
-    val tree = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        if (uri != null) scope.launch(Dispatchers.IO) {
-            val msg = runCatching {
-                val (added, skipped) = vm.repo.restoreFromTree(uri)
-                when {
-                    added == 0 && skipped == 0 -> "Nessun progetto trovato in quella cartella"
-                    else -> "Ripristinati $added brani" + if (skipped > 0) " ($skipped già presenti)" else ""
-                }
-            }.getOrElse { "Ripristino non riuscito" }
-            withContext(Dispatchers.Main) { vm.refreshProjects(); vm.message.value = msg }
-        }
-    }
+    val tree = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { it?.let(vm::setLibrary) }
+    val library by vm.library.collectAsState()
 
     MLSettingsScaffold("Impostazioni", onBack) {
         MLThemeSettingsGroup()
@@ -61,9 +52,7 @@ fun SettingsScreen(vm: AppViewModel, onBack: () -> Unit) {
             ) { threads = it.toInt(); Settings.setThreads(ctx, threads) }
         }
         MLGroup("Progetti") {
-            MLNavRow("Ripristina da cartella", "Scegli Download/MLStems per rileggere i brani salvati") {
-                tree.launch(null)
-            }
+            MLNavRow("Cartella dei progetti", library ?: "Non scelta: tocca per sceglierla") { tree.launch(null) }
             MLNavRow("Carica progetto da file", "Apri un file .mlstems salvato in precedenza") {
                 opener.launch(arrayOf("*/*"))
             }

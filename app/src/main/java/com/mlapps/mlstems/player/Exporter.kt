@@ -24,9 +24,9 @@ object Exporter {
         return uri to ctx.contentResolver.openOutputStream(uri)!!
     }
 
-    fun exportStem(ctx: Context, title: String, stemName: String, file: File) {
-        val (_, out) = create(ctx, "$title - $stemName", file.extension.lowercase())
-        out.use { o -> file.inputStream().use { it.copyTo(o) } }
+    fun exportStem(ctx: Context, title: String, stemName: String, src: android.net.Uri, ext: String) {
+        val (_, out) = create(ctx, "$title - $stemName", ext.lowercase())
+        out.use { o -> ctx.contentResolver.openInputStream(src)!!.use { it.copyTo(o) } }
     }
 
     /** Mix finale con i volumi / mute / solo correnti. */

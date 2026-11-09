@@ -4,6 +4,8 @@ import android.content.Context
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import java.io.File
 
 @Serializable
@@ -33,47 +35,125 @@ data class Project(
     val realtimeFactor: Float get() = if (separateMs > 0) durationMs.toFloat() / separateMs else 0f
 }
 
-/** Ogni progetto è una cartella: project.json + un FLAC per ogni stem. */
+/**
+ * I brani vivono nella cartella scelta dall'utente (di solito Download/MLStems): una sottocartella per brano
+ * con project.json e un FLAC per ogni stem. Nessuna copia interna: reinstallando l'app basta indicare di nuovo la cartella.
+ * L'id di un progetto è il nome della sua cartella.
+ */
 class ProjectRepository(private val context: Context) {
 
-    private val root = File(context.filesDir, "projects").apply { mkdirs() }
+    private val prefs = context.getSharedPreferences("settings", 0)
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
+    private val resolver get() = context.contentResolver
 
-    fun dir(id: String) = File(root, id).apply { mkdirs() }
+    private class Entry(val project: Project, val folder: DocumentFile)
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, Entry>()
 
-    fun list(): List<Project> =
-        root.listFiles().orEmpty()
-            .mapNotNull { runCatching { load(it.name) }.getOrNull() }
-            .sortedByDescending { it.createdAt }
+    // ── cartella dei progetti ──
 
-    fun load(id: String): Project =
-        json.decodeFromString(File(dir(id), "project.json").readText())
-
-    fun save(project: Project) {
-        File(dir(project.id), "project.json").writeText(json.encodeToString(project))
+    private fun root(): DocumentFile? {
+        val uri = prefs.getString("library_tree", null)?.let(Uri::parse) ?: return null
+        return DocumentFile.fromTreeUri(context, uri)?.takeIf { it.exists() && it.canWrite() }
     }
+
+    /** Nome della cartella scelta, o null se non è stata scelta (o non è più accessibile). */
+    fun libraryName(): String? = root()?.name
+
+    fun setLibrary(tree: Uri) {
+        runCatching {
+            resolver.takePersistableUriPermission(tree, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        }
+        prefs.edit().putString("library_tree", tree.toString()).apply()
+        cache.clear()
+    }
+
+    // ── lettura ──
+
+    private fun readProject(folder: DocumentFile): Project? = runCatching {
+        val meta = folder.findFile("project.json") ?: return null
+        val p = json.decodeFromString<Project>(resolver.openInputStream(meta.uri)!!.use { it.readBytes().decodeToString() })
+        val name = folder.name ?: return null
+        p.copy(id = name, folder = name)
+    }.getOrNull()
+
+    fun list(): List<Project> {
+        val r = root() ?: return emptyList()
+        val found = r.listFiles().filter { it.isDirectory }.mapNotNull { f -> readProject(f)?.let { Entry(it, f) } }
+        cache.clear()
+        found.forEach { cache[it.project.id] = it }
+        return found.map { it.project }.sortedByDescending { it.createdAt }
+    }
+
+    fun load(id: String): Project = (cache[id] ?: error("Progetto non trovato")).project
+
+    /** URI di un file del progetto (null se manca). */
+    fun fileUri(id: String, name: String): Uri? = cache[id]?.folder?.findFile(name)?.uri
 
     fun findByHash(hash: String, modelId: String): Project? =
         list().firstOrNull { it.sourceHash == hash && it.modelId == modelId }
 
+    // ── scrittura ──
+
+    private fun clean(name: String) = name.replace(Regex("[\\\\/:*?\"<>|]"), " ").trim().trim('.').ifEmpty { "Brano" }
+
+    /** Crea la cartella di un nuovo brano (nome unico). */
+    fun newFolder(title: String): DocumentFile {
+        val r = root() ?: error("Scegli prima la cartella dei progetti")
+        val base = clean(title)
+        var name = base
+        var n = 2
+        while (r.findFile(name) != null) name = "$base ($n)".also { n++ }
+        return r.createDirectory(name) ?: error("Non riesco a creare la cartella")
+    }
+
+    /** Crea un file vuoto nella cartella e restituisce il documento (il nome finale può differire). */
+    fun newFile(folder: DocumentFile, name: String, mime: String): DocumentFile =
+        folder.createFile(mime, name) ?: error("Non riesco a creare $name")
+
+    /** Scrive project.json e registra il progetto. */
+    fun finish(folder: DocumentFile, project: Project): Project {
+        val name = folder.name!!
+        val p = project.copy(id = name, folder = name)
+        writeMeta(folder, p)
+        cache[name] = Entry(p, folder)
+        return p
+    }
+
+    private fun writeMeta(folder: DocumentFile, p: Project) {
+        val doc = folder.findFile("project.json") ?: folder.createFile("application/json", "project.json") ?: error("project.json")
+        resolver.openOutputStream(doc.uri, "wt")!!.use { it.write(json.encodeToString(p).toByteArray()) }
+    }
+
+    /** Salva le modifiche (volumi, mute, solo). */
+    fun save(project: Project) {
+        val e = cache[project.id] ?: return
+        writeMeta(e.folder, project)
+        cache[project.id] = Entry(project, e.folder)
+    }
+
     fun delete(id: String) {
-        dir(id).deleteRecursively()
+        cache.remove(id)?.folder?.delete()
         com.mlapps.mlstems.engine.StemCache.clear(context, id)
     }
 
+    fun deleteFolder(folder: DocumentFile) { runCatching { folder.delete() } }
+
+    // ── file .mlstems ──
+
     /** Salva il progetto in un unico file (zip senza compressione: project.json + gli stem). */
     fun exportTo(id: String, out: java.io.OutputStream) {
+        val folder = cache[id]?.folder ?: error("Progetto non trovato")
         java.util.zip.ZipOutputStream(java.io.BufferedOutputStream(out, 1 shl 16)).use { zip ->
             zip.setLevel(0)                       // FLAC è già compresso
-            dir(id).listFiles().orEmpty().filter { it.isFile }.forEach { f ->
-                zip.putNextEntry(java.util.zip.ZipEntry(f.name))
-                f.inputStream().use { it.copyTo(zip) }
+            folder.listFiles().filter { it.isFile }.forEach { f ->
+                zip.putNextEntry(java.util.zip.ZipEntry(f.name ?: return@forEach))
+                resolver.openInputStream(f.uri)!!.use { it.copyTo(zip) }
                 zip.closeEntry()
             }
         }
     }
 
-    /** Legge un file progetto. Restituisce il progetto e se era già presente (stesso brano e modello). */
+    /** Legge un file progetto nella cartella dei progetti. Restituisce il progetto e se era già presente. */
     fun importFrom(input: java.io.InputStream): Pair<Project, Boolean> {
         val tmp = File(context.cacheDir, "import-${System.nanoTime()}").apply { mkdirs() }
         try {
@@ -88,48 +168,40 @@ class ProjectRepository(private val context: Context) {
             val project = json.decodeFromString<Project>(File(tmp, "project.json").readText())
             require(project.stems.isNotEmpty() && project.stems.all { File(tmp, File(it.file).name).exists() }) { "File progetto incompleto" }
             findByHash(project.sourceHash, project.modelId)?.let { return it to true }
-            val id = java.util.UUID.randomUUID().toString()
-            val target = dir(id)
-            tmp.listFiles().orEmpty().forEach { it.copyTo(File(target, it.name), overwrite = true) }
-            val saved = project.copy(id = id, stems = project.stems.map { it.copy(file = File(it.file).name) })
-            save(saved)
-            return saved to false
+            return storeFrom(project, tmp) to false
         } finally {
             tmp.deleteRecursively()
         }
     }
 
-    /**
-     * Ripristino: legge le cartelle di Download/MLStems scelte dall'utente (una cartella-brano oppure la cartella
-     * che le contiene). Salta i brani già presenti. Restituisce (caricati, già presenti).
-     */
-    fun restoreFromTree(tree: android.net.Uri): Pair<Int, Int> {
-        val root = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, tree) ?: return 0 to 0
-        val candidates = if (root.findFile("project.json") != null) listOf(root)
-        else root.listFiles().filter { it.isDirectory }
-        var added = 0; var skipped = 0
-        for (doc in candidates) {
-            val ok = runCatching {
-                val meta = doc.findFile("project.json") ?: return@runCatching false
-                val project = json.decodeFromString<Project>(
-                    context.contentResolver.openInputStream(meta.uri)!!.use { it.readBytes().decodeToString() })
-                if (findByHash(project.sourceHash, project.modelId) != null) { skipped++; return@runCatching true }
-                val files = project.stems.map { doc.findFile(File(it.file).name) ?: error("manca ${it.file}") }
-                val id = java.util.UUID.randomUUID().toString()
-                val target = dir(id)
-                try {
-                    project.stems.forEachIndexed { i, st ->
-                        context.contentResolver.openInputStream(files[i].uri)!!.use { inp ->
-                            File(target, File(st.file).name).outputStream().use { inp.copyTo(it) }
-                        }
-                    }
-                    save(project.copy(id = id, folder = doc.name ?: "", stems = project.stems.map { it.copy(file = File(it.file).name) }))
-                } catch (e: Throwable) { delete(id); throw e }
-                added++
-                true
-            }.getOrDefault(false)
-            if (!ok) continue
+    /** Copia i file di un progetto (da una cartella locale) nella cartella dei progetti. */
+    private fun storeFrom(project: Project, src: File): Project {
+        val folder = newFolder(project.title)
+        try {
+            val stems = project.stems.map { st ->
+                val name = clean(st.name) + "." + File(st.file).extension
+                val doc = newFile(folder, name, if (name.endsWith("flac")) "audio/flac" else "audio/x-wav")
+                resolver.openOutputStream(doc.uri)!!.use { out -> File(src, File(st.file).name).inputStream().use { it.copyTo(out) } }
+                st.copy(file = doc.name ?: name)
+            }
+            return finish(folder, project.copy(stems = stems))
+        } catch (e: Throwable) {
+            folder.delete(); throw e
         }
-        return added to skipped
+    }
+
+    /** Porta nella cartella dei progetti i brani che le versioni precedenti tenevano dentro l'app. */
+    fun migrateInternal(): Int {
+        if (root() == null) return 0
+        val old = File(context.filesDir, "projects")
+        var moved = 0
+        for (dir in old.listFiles().orEmpty().filter { it.isDirectory }) {
+            val ok = runCatching {
+                val p = json.decodeFromString<Project>(File(dir, "project.json").readText())
+                if (findByHash(p.sourceHash, p.modelId) == null) { storeFrom(p, dir); moved++ }
+            }.isSuccess
+            if (ok) dir.deleteRecursively()
+        }
+        return moved
     }
 }

@@ -102,26 +102,32 @@ private fun fmt(ms: Long): String = "%d:%02d".format(ms / 60000, ms / 1000 % 60)
 // ───────────────────────── Home: elenco progetti ─────────────────────────
 
 @Composable
-fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit, onModels: () -> Unit, onSettings: () -> Unit, onOpen: (String) -> Unit) {
+fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit,  onModels: () -> Unit, onSettings: () -> Unit, onOpen: (String) -> Unit) {
     val projects by vm.projects.collectAsState()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(onPick) }
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val library by vm.library.collectAsState()
+    val treePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { it?.let(vm::setLibrary) }
+    val projectPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch(Dispatchers.IO) {
+            val msg = runCatching {
+                val (p, existed) = ctx.contentResolver.openInputStream(uri)!!.use { vm.repo.importFrom(it) }
+                if (existed) "“${p.title}” era già presente" else "Progetto “${p.title}” caricato"
+            }.getOrElse { "File progetto non valido" }
+            withContext(Dispatchers.Main) { vm.refreshProjects(); vm.message.value = msg }
+        }
+    }
     var toDelete by remember { mutableStateOf<com.mlapps.mlstems.data.Project?>(null) }
     toDelete?.let { p ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { toDelete = null },
             title = { Text("Eliminare “${p.title}”?") },
             text = {
-                Text(
-                    if (p.folder.isNotEmpty()) "Puoi togliere il brano solo dall'app e tenere i file in Download/MLStems/${p.folder}, oppure cancellare anche quelli."
-                    else "Il brano sparisce dall'app. Non ha una copia in Download.",
-                )
+                Text("La cartella “${p.folder}” con gli stem e il progetto verrà cancellata. Se vuoi tenerne una copia, usa prima “Salva progetto” nel mixer.")
             },
             confirmButton = {
-                androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.End) {
-                    androidx.compose.material3.TextButton(onClick = { vm.deleteProject(p, false); toDelete = null }) { Text("Elimina solo dall'app") }
-                    if (p.folder.isNotEmpty())
-                        androidx.compose.material3.TextButton(onClick = { vm.deleteProject(p, true); toDelete = null }) { Text("Elimina anche la cartella") }
-                }
+                androidx.compose.material3.TextButton(onClick = { vm.deleteProject(p); toDelete = null }) { Text("Elimina") }
             },
             dismissButton = { androidx.compose.material3.TextButton(onClick = { toDelete = null }) { Text("Annulla") } },
         )
@@ -131,6 +137,18 @@ fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit, onMo
         Bar("MLStems", null) {
             androidx.compose.material3.TextButton(onClick = onModels) { Text("Modelli") }
             IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Impostazioni") }
+        }
+        if (library == null) {
+            Card(Modifier.fillMaxWidth().padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Scegli dove salvare i brani", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Vai in Download, crea o scegli la cartella MLStems e tocca “Usa questa cartella”. Gli stem e i progetti staranno lì, uno per cartella.",
+                        Modifier.padding(vertical = 8.dp), style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Button(onClick = { treePicker.launch(null) }) { Text("Scegli la cartella") }
+                }
+            }
         }
         if (projects.isEmpty()) {
             Column(Modifier.fillMaxWidth().padding(32.dp).weight(1f), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -178,8 +196,11 @@ fun HomeScreen(vm: AppViewModel, modifier: Modifier, onPick: (Uri) -> Unit, onMo
                 }
             }
         }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End) {
+            OutlinedButton(onClick = { projectPicker.launch(arrayOf("*/*")) }) { Text("Carica un progetto") }
+        }
         ExtendedFloatingActionButton(
-            onClick = { picker.launch(arrayOf("audio/*")) },
+            onClick = { if (library == null) treePicker.launch(null) else picker.launch(arrayOf("audio/*")) },
             icon = { Icon(Icons.Default.Add, null) },
             text = { Text("Nuovo brano") },
             modifier = Modifier.padding(16.dp).align(Alignment.End),
@@ -316,28 +337,39 @@ fun ProcessingScreen(modifier: Modifier, onDone: (String) -> Unit, onClose: () -
 fun MixerScreen(vm: AppViewModel, projectId: String, modifier: Modifier, onBack: () -> Unit) {
     val ctx = LocalContext.current
     val project = remember(projectId) { vm.repo.load(projectId) }
-    val stemFiles = remember(projectId) { project.stems.map { vm.repo.dir(projectId).resolve(it.file) } }
     var wavs by remember(projectId) { mutableStateOf<List<java.io.File>?>(null) }
+    var uris by remember(projectId) { mutableStateOf<List<android.net.Uri>>(emptyList()) }
+    var failed by remember(projectId) { mutableStateOf(false) }
     var prep by remember(projectId) { mutableStateOf(0f) }
     LaunchedEffect(projectId) {
-        wavs = withContext(Dispatchers.IO) {
-            stemFiles.mapIndexed { i, f ->
-                com.mlapps.mlstems.engine.StemCache.wavFor(ctx, projectId, f) { prep = (i + it) / stemFiles.size }
+        runCatching {
+            withContext(Dispatchers.IO) {
+                val u = project.stems.map { vm.repo.fileUri(projectId, it.file) ?: error("manca ${it.file}") }
+                val w = u.mapIndexed { i, uri ->
+                    com.mlapps.mlstems.engine.StemCache.wavFor(ctx, projectId, uri, project.stems[i].file) { prep = (i + it) / u.size }
+                }
+                uris = u; w
             }
-        }
+        }.onSuccess { wavs = it }.onFailure { failed = true }
     }
     val ready = wavs
-    if (ready == null) {
+    if (failed) {
+        Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("I file di questo brano non ci sono più nella cartella.", style = MaterialTheme.typography.titleMedium)
+            Text("Sono stati spostati o cancellati. Puoi eliminare il brano dall'elenco.", Modifier.padding(top = 8.dp))
+            Button(onClick = onBack, modifier = Modifier.padding(top = 16.dp)) { Text("Indietro") }
+        }
+    } else if (ready == null) {
         Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator()
             Text("Preparo le tracce per l'ascolto…", Modifier.padding(top = 16.dp))
             LinearProgressIndicator(progress = { prep }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
         }
-    } else MixerContent(vm, projectId, ready, stemFiles, modifier, onBack)
+    } else MixerContent(vm, projectId, ready, uris, modifier, onBack)
 }
 
 @Composable
-private fun MixerContent(vm: AppViewModel, projectId: String, files: List<java.io.File>, stemFiles: List<java.io.File>, modifier: Modifier, onBack: () -> Unit) {
+private fun MixerContent(vm: AppViewModel, projectId: String, files: List<java.io.File>, stemUris: List<android.net.Uri>, modifier: Modifier, onBack: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val project = remember(projectId) { vm.repo.load(projectId) }
@@ -399,7 +431,7 @@ private fun MixerContent(vm: AppViewModel, projectId: String, files: List<java.i
                 OutlinedButton(enabled = !exporting, onClick = {
                     exporting = true
                     scope.launch(Dispatchers.IO) {
-                        tracks.forEachIndexed { i, t -> Exporter.exportStem(ctx, project.title, t.name, stemFiles[i]) }
+                        tracks.forEachIndexed { i, t -> Exporter.exportStem(ctx, project.title, t.name, stemUris[i], project.stems[i].file.substringAfterLast('.', "flac")) }
                         withContext(Dispatchers.Main) { exporting = false; vm.message.value = "Stem salvati in Download/MLStems" }
                     }
                 }) { Text("Esporta stem") }

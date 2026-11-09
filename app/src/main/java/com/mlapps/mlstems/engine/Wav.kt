@@ -52,8 +52,8 @@ object Wav {
 }
 
 /** Scrive uno stem su disco man mano che arriva (FLAC 16 bit stereo, lunghezza nota in anticipo). */
-class StemWriter(file: File, totalFrames: Int) : AutoCloseable {
-    private val enc = FlacEncoder(BufferedOutputStream(file.outputStream(), 1 shl 16), SAMPLE_RATE, totalFrames.toLong())
+class StemWriter(out: java.io.OutputStream, totalFrames: Int) : AutoCloseable {
+    private val enc = FlacEncoder(BufferedOutputStream(out, 1 shl 16), SAMPLE_RATE, totalFrames.toLong())
 
     fun write(left: FloatArray, right: FloatArray, count: Int) = enc.write(left, right, count)
 

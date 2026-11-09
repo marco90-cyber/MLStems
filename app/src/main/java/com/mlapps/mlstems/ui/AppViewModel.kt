@@ -21,7 +21,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val repo = ProjectRepository(app)
     val models = ModelManager(app)
 
-    val projects = MutableStateFlow(repo.list())
+    val projects = MutableStateFlow<List<Project>>(emptyList())
+    /** Nome della cartella dei progetti scelta, null se non ancora scelta. */
+    val library = MutableStateFlow(repo.libraryName())
     val installed = MutableStateFlow(models.installedIds())
     val downloads = DownloadState.downloads   // gestiti da DownloadService: continuano in background
     val message = MutableStateFlow<String?>(null)
@@ -31,6 +33,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         refreshCatalog()
+        if (library.value != null) io { repo.migrateInternal(); projects.value = repo.list() }
         viewModelScope.launch {   // quando un download finisce (anche in background) aggiorna la lista
             DownloadState.tick.collect {
                 installed.value = models.installedIds()
@@ -42,7 +45,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun refreshProjects() { projects.value = repo.list() }
+    fun refreshProjects() = io { projects.value = repo.list() }
+
+    fun setLibrary(tree: Uri) = io {
+        repo.setLibrary(tree)
+        library.value = repo.libraryName()
+        val moved = repo.migrateInternal()
+        projects.value = repo.list()
+        message.value = if (moved > 0) "Cartella scelta: spostati $moved brani dall'app" else "Cartella dei progetti: ${library.value}"
+    }
 
     fun refreshCatalog() = io {
         models.refreshCatalog()
@@ -64,13 +75,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         revision.update { it + 1 }
     }
 
-    fun deleteProject(p: Project, alsoFolder: Boolean = false) = io {
-        if (alsoFolder && p.folder.isNotEmpty()) {
-            val n = runCatching { com.mlapps.mlstems.data.ProjectMirror.delete(getApplication<Application>(), p.folder) }.getOrDefault(0)
-            if (n == 0) message.value = "Non ho potuto cancellare la cartella in Download: eliminala a mano"
-        }
+    fun deleteProject(p: Project) = io {
         repo.delete(p.id)
-        refreshProjects()
+        projects.value = repo.list()
     }
 
     fun saveProject(p: Project) = io { repo.save(p) }

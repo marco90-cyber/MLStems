@@ -20,7 +20,6 @@ import com.mlapps.mlstems.data.Family
 import com.mlapps.mlstems.data.ModelCatalog
 import com.mlapps.mlstems.data.ModelManager
 import com.mlapps.mlstems.data.Project
-import com.mlapps.mlstems.data.ProjectMirror
 import com.mlapps.mlstems.data.ProjectRepository
 import com.mlapps.mlstems.data.StemTrack
 import kotlinx.coroutines.CoroutineScope
@@ -72,6 +71,7 @@ class SeparationService : Service() {
         try {
             val model = ModelCatalog.byId(modelId)
             val repo = ProjectRepository(this)
+            check(repo.libraryName() != null) { "Scegli prima la cartella dei progetti (Impostazioni)" }
             title = displayName(uri)
 
             fun update(stage: String, p: Float) {
@@ -106,10 +106,11 @@ class SeparationService : Service() {
                 Family.SPLEETER4 -> SpleeterEngine(mm.modelsDir, threads, configure = { if (useNpu) Accel.configure(this, it, variant) })
             }
 
-            val id = UUID.randomUUID().toString()
-            val dir = repo.dir(id)
+            val folder = repo.newFolder(title)
             val tSep = System.currentTimeMillis()
-            val writers = engine.sources.indices.map { StemWriter(dir.resolve("stem_$it.flac"), audio.frames) }
+            val labels = engine.sources.map { stemLabel(it) }
+            val docs = labels.map { repo.newFile(folder, "$it.flac", "audio/flac") }
+            val writers = docs.map { StemWriter(contentResolver.openOutputStream(it.uri)!!, audio.frames) }
             try {
                 val sink = object : StemSink {
                     override fun write(stem: Int, left: FloatArray, right: FloatArray, count: Int) =
@@ -118,17 +119,14 @@ class SeparationService : Service() {
                 engine.separate(audio.left, audio.right, sink) { update("Separazione", 0.1f + it * 0.9f) }
             } catch (e: Throwable) {
                 writers.forEach { runCatching { it.close() } }
-                repo.delete(id)
+                repo.deleteFolder(folder)
                 throw e
             }
             writers.forEach { it.close() }
-            val tracks = engine.sources.mapIndexed { i, name -> StemTrack(name = stemLabel(name), file = "stem_$i.flac") }
-            var project = Project(id, title, hash, modelId, tracks, audio.frames * 1000L / SAMPLE_RATE,
-                decodeMs = decodeMs, separateMs = System.currentTimeMillis() - tSep, accel = if (useNpu) "NPU" else "CPU")
-            repo.save(project)
-            update("Salvo in Download/MLStems", 0.99f)
-            runCatching { ProjectMirror.write(this, project, repo.dir(id)) }   // se manca spazio il progetto resta comunque nell'app
-                .onSuccess { project = project.copy(folder = it); repo.save(project) }
+            val tracks = labels.mapIndexed { i, name -> StemTrack(name = name, file = docs[i].name ?: "$name.flac") }
+            val saved = repo.finish(folder, Project(folder.name!!, title, hash, modelId, tracks, audio.frames * 1000L / SAMPLE_RATE,
+                decodeMs = decodeMs, separateMs = System.currentTimeMillis() - tSep, accel = if (useNpu) "NPU" else "CPU"))
+            val id = saved.id
             state.value = SeparationStatus.Done(id)
             notifyResult(this, 3, "$title: separazione completata")
         } catch (e: kotlinx.coroutines.CancellationException) {

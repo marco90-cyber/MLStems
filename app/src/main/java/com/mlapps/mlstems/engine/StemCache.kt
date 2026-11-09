@@ -16,13 +16,12 @@ import java.nio.ByteOrder
  */
 object StemCache {
 
-    fun wavFor(ctx: Context, projectId: String, file: File, onProgress: (Float) -> Unit = {}): File {
-        if (file.extension.equals("wav", true)) return file
+    fun wavFor(ctx: Context, projectId: String, src: android.net.Uri, name: String, onProgress: (Float) -> Unit = {}): File {
         val dir = File(ctx.cacheDir, "stems/$projectId").apply { mkdirs() }
-        val wav = File(dir, file.nameWithoutExtension + ".wav")
+        val wav = File(dir, File(name).nameWithoutExtension + ".wav")
         if (wav.exists() && wav.length() > Wav.HEADER) return wav
         val tmp = File(dir, wav.name + ".tmp")
-        decodeToWav(file, tmp, onProgress)
+        decodeToWav(ctx, src, tmp, onProgress)
         tmp.renameTo(wav)
         return wav
     }
@@ -31,9 +30,9 @@ object StemCache {
         File(ctx.cacheDir, "stems/$projectId").deleteRecursively()
     }
 
-    private fun decodeToWav(src: File, dst: File, onProgress: (Float) -> Unit) {
+    private fun decodeToWav(ctx: Context, src: android.net.Uri, dst: File, onProgress: (Float) -> Unit) {
         val extractor = MediaExtractor()
-        extractor.setDataSource(src.path)
+        extractor.setDataSource(ctx, src, null)
         val format = extractor.getTrackFormat(0)
         extractor.selectTrack(0)
         val durationUs = if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION) else 0L
