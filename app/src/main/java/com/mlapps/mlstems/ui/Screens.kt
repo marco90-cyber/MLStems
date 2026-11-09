@@ -375,6 +375,15 @@ private fun MixerContent(vm: AppViewModel, projectId: String, files: List<java.i
                         withContext(Dispatchers.Main) { exporting = false; vm.message.value = "Mix salvato in Download/MLStems" }
                     }
                 }) { Text("Esporta mix") }
+                OutlinedButton(enabled = !exporting, onClick = {
+                    exporting = true
+                    scope.launch(Dispatchers.IO) {
+                        tracks.forEachIndexed { i, t -> Exporter.exportStem(ctx, project.title, t.name, stemFiles[i]) }
+                        withContext(Dispatchers.Main) { exporting = false; vm.message.value = "Stem salvati in Download/MLStems" }
+                    }
+                }) { Text("Esporta stem") }
+            }
+            Row {
                 val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
                     if (uri != null) {
                         exporting = true
@@ -385,13 +394,6 @@ private fun MixerContent(vm: AppViewModel, projectId: String, files: List<java.i
                     }
                 }
                 OutlinedButton(enabled = !exporting, onClick = { saver.launch("${project.title}.mlstems") }) { Text("Salva progetto") }
-                OutlinedButton(enabled = !exporting, onClick = {
-                    exporting = true
-                    scope.launch(Dispatchers.IO) {
-                        tracks.forEachIndexed { i, t -> Exporter.exportStem(ctx, project.title, t.name, stemFiles[i]) }
-                        withContext(Dispatchers.Main) { exporting = false; vm.message.value = "Stem salvati in Download/MLStems" }
-                    }
-                }) { Text("Esporta stem") }
             }
         }
         // trasporto
