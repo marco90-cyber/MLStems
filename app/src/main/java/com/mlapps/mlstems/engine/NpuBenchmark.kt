@@ -15,10 +15,10 @@ object NpuBenchmark {
     private fun input() = FloatArray(2 * 512 * 1024) { ((it * 7919L) % 1000).toFloat() / 1000f }
 
     /** null se la rete parte sull'NPU, altrimenti il messaggio d'errore. */
-    fun probe(ctx: Context, model: File): String? = try {
+    fun probe(ctx: Context, model: File, variant: String): String? = try {
         val env = OrtEnvironment.getEnvironment()
         OrtSession.SessionOptions().use { o ->
-            Accel.configure(ctx, o)
+            Accel.configure(ctx, o, variant)
             env.createSession(model.absolutePath, o).close()
         }
         null
@@ -28,12 +28,12 @@ object NpuBenchmark {
 
     private class Out(val loadMs: Long, val avgMs: Long, val y: FloatArray)
 
-    private fun time(ctx: Context, model: File, npu: Boolean, runs: Int, strict: Boolean = false): Out {
+    private fun time(ctx: Context, model: File, variant: String?, runs: Int, strict: Boolean = false): Out {
         val env = OrtEnvironment.getEnvironment()
         val t0 = System.currentTimeMillis()
         OrtSession.SessionOptions().use { o ->
             o.setIntraOpNumThreads(4)
-            if (npu) Accel.configure(ctx, o)
+            if (variant != null) Accel.configure(ctx, o, variant)
             if (strict) o.addConfigEntry("session.disable_cpu_ep_fallback", "1")
             env.createSession(model.absolutePath, o).use { s ->
                 val load = System.currentTimeMillis() - t0
@@ -55,23 +55,27 @@ object NpuBenchmark {
         }
     }
 
+    /** Prova CPU e ogni variante QNN; salva nelle impostazioni la più veloce (o nessuna se la CPU vince). */
     fun run(ctx: Context, model: File, onLine: (String) -> Unit) {
         if (!model.exists()) { onLine("Scarica prima il modello Spleeter 4 stem."); return }
         val runs = 5
-        val cpu = try { time(ctx, model, false, runs).also { onLine("CPU: caricamento ${it.loadMs} ms · ${it.avgMs} ms per blocco") } }
+        val cpu = try { time(ctx, model, null, runs).also { onLine("CPU: ${it.avgMs} ms per blocco (caricamento ${it.loadMs} ms)") } }
         catch (e: Throwable) { onLine("CPU: errore ${e.message}"); return }
-        if (!Accel.available) { onLine("Questa build non include l'NPU."); return }
-        try {
-            val npu = time(ctx, model, true, runs)
-            val diff = cpu.y.indices.maxOf { abs(cpu.y[it] - npu.y[it]) }
-            onLine("NPU: caricamento ${npu.loadMs} ms · ${npu.avgMs} ms per blocco")
-            onLine("Velocità NPU rispetto alla CPU: ×${"%.2f".format(cpu.avgMs.toFloat() / npu.avgMs.coerceAtLeast(1))}")
-            onLine("Differenza massima sul risultato: ${"%.4f".format(diff)}")
-        } catch (e: Throwable) {
-            onLine("NPU: errore ${e.message}")
-            return
+        var best: String? = null
+        var bestMs = cpu.avgMs
+        for (v in Accel.variants) {
+            try {
+                val r = time(ctx, model, v, runs)
+                val diff = cpu.y.indices.maxOf { abs(cpu.y[it] - npu(r)[it]) }
+                onLine("$v: ${r.avgMs} ms per blocco (×${"%.2f".format(cpu.avgMs.toFloat() / r.avgMs.coerceAtLeast(1))}), caricamento ${r.loadMs} ms, differenza ${"%.4f".format(diff)}")
+                if (r.avgMs < bestMs && diff < 0.05f) { best = v; bestMs = r.avgMs }
+            } catch (e: Throwable) {
+                onLine("$v: errore ${(e.message ?: "").take(160)}")
+            }
         }
-        onLine(try { time(ctx, model, true, 1, strict = true); "NPU senza ripiego sulla CPU: riuscita (rete intera sull'NPU)" }
-        catch (e: Throwable) { "NPU senza ripiego sulla CPU: non riuscita (parte della rete resta sulla CPU)" })
+        ctx.getSharedPreferences("settings", 0).edit().putString("npu_variant", best ?: "").apply()
+        onLine(if (best != null) "Conviene: $best (la scelgo per l'elaborazione)" else "Nessuna variante batte la CPU: resta la CPU.")
     }
+
+    private fun npu(r: Out) = r.y
 }

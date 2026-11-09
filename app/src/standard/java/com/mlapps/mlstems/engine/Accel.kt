@@ -6,5 +6,6 @@ import android.content.Context
 /** Build normale: solo CPU. */
 object Accel {
     const val available = false
-    fun configure(context: Context, options: OrtSession.SessionOptions) {}
+    val variants: List<String> = emptyList()
+    fun configure(context: Context, options: OrtSession.SessionOptions, variant: String = "") {}
 }

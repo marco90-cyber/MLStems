@@ -93,15 +93,16 @@ class SeparationService : Service() {
             check(mm.isInstalled(model)) { "Modello non installato" }
             val threads = Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
             // NPU sperimentale (solo build NPU, attivata dall'utente, solo Spleeter): se non parte si torna alla CPU
-            var useNpu = Accel.available && model.family == Family.SPLEETER4 &&
-                getSharedPreferences("settings", 0).getBoolean("npu", false)
+            val prefs = getSharedPreferences("settings", 0)
+            val variant = prefs.getString("npu_variant", "") ?: ""
+            var useNpu = Accel.available && model.family == Family.SPLEETER4 && prefs.getBoolean("npu", false) && variant.isNotEmpty()
             if (useNpu) {
-                update("Provo l'NPU", 0.1f)
-                useNpu = NpuBenchmark.probe(this, mm.modelsDir.resolve("spleeter4_vocals.onnx")) == null
+                update("Provo l'acceleratore", 0.1f)
+                useNpu = NpuBenchmark.probe(this, mm.modelsDir.resolve("spleeter4_vocals.onnx"), variant) == null
             }
             val engine: StemEngine = when (model.family) {
                 Family.DEMUCS -> DemucsEngine(DemucsConfig.load(mm.configFile(model)), threads)
-                Family.SPLEETER4 -> SpleeterEngine(mm.modelsDir, threads, configure = { if (useNpu) Accel.configure(this, it) })
+                Family.SPLEETER4 -> SpleeterEngine(mm.modelsDir, threads, configure = { if (useNpu) Accel.configure(this, it, variant) })
             }
 
             val id = UUID.randomUUID().toString()

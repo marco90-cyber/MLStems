@@ -418,7 +418,7 @@ private fun NpuPanel(vm: AppViewModel) {
                 androidx.compose.material3.Switch(checked = on, onCheckedChange = { on = it; prefs.edit().putBoolean("npu", it).apply() })
             }
             Text(
-                "Usa il chip Qualcomm Hexagon per Spleeter 4 stem. Se non parte, l'app torna alla CPU. Prima fai il test per vedere se conviene.",
+                "Prova NPU Hexagon e GPU Qualcomm per Spleeter 4 stem. Il test sceglie da solo la variante più veloce; se nessuna batte la CPU, resta la CPU.",
                 style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp),
             )
             FilledTonalButton(enabled = !running, onClick = {
