@@ -43,6 +43,15 @@ jobs:
           D=$(mktemp -d); (cd $D && unzip -oq "$J")
           javap -cp $D 'ai.onnxruntime.OrtSession$SessionOptions' | grep -iE "qnn|ExecutionProvider|Symbolic|ConfigEntry" || true
 
+      - name: Diagnostica libreria MP3
+        if: always()
+        run: |
+          for A in $(find ~/.gradle -iname '*TAndroidLame*' \( -name '*.aar' -o -name 'classes.jar' \) | head -3); do echo "== $A"; done
+          J=$(find ~/.gradle -path '*TAndroidLame*' -name 'classes.jar' | head -1); echo "$J"
+          [ -n "$J" ] && (D=$(mktemp -d); cd $D && unzip -oq "$J" && find . -name '*.class' | head -20)
+          S=$(find ~/.gradle -path '*TAndroidLame*' -name '*.so' | head -10); echo "SO: $S"
+          X=$(find ~/.gradle -iname '*TAndroidLame*.aar' | head -1); [ -n "$X" ] && unzip -l "$X" | grep -E "\.so|classes" | head -20 || true
+
       - name: Rename APK
         run: |
           cp app/build/outputs/apk/standard/debug/app-standard-debug.apk MLStems.apk

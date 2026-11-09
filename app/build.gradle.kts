@@ -58,6 +58,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation(project(":core"))
     implementation("androidx.documentfile:documentfile:1.0.1")
+    implementation("com.github.NorthernCaptain:TAndroidLame:1.1")
     implementation("com.github.marco90-cyber:MLTheme:1.0.0")
     "standardImplementation"("com.microsoft.onnxruntime:onnxruntime-android:1.19.2")
     "npuImplementation"("com.microsoft.onnxruntime:onnxruntime-android-qnn:1.24.1")
