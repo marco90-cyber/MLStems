@@ -51,12 +51,34 @@ object Wav {
 }
 
 /** Scrive uno stem su disco man mano che arriva (16 bit stereo, lunghezza nota in anticipo). */
-class StemWriter(out: OutputStream, totalFrames: Int, format: AudioFormat) : AutoCloseable {
+class StemWriter(out: OutputStream, totalFrames: Int, format: AudioFormat, private val cacheWav: java.io.File? = null) : AutoCloseable {
     private val w = format.open(out, totalFrames.toLong())
+    // copia WAV nella cache, scritta insieme: così il mixer si apre subito, senza ridecodificare
+    private val tmp = cacheWav?.let { java.io.File(it.parentFile, it.name + ".tmp") }
+    private var cache: PcmWriter? = tmp?.let {
+        runCatching { it.parentFile?.mkdirs(); AudioFormat.WAV.open(it.outputStream(), totalFrames.toLong()) }.getOrNull()
+    }
 
-    fun write(left: FloatArray, right: FloatArray, count: Int) = w.writeFloat(left, right, count)
+    fun write(left: FloatArray, right: FloatArray, count: Int) {
+        w.writeFloat(left, right, count)
+        cache?.let { c -> runCatching { c.writeFloat(left, right, count) }.onFailure { cache = null } }
+    }
 
-    override fun close() = w.close()
+    override fun close() {
+        w.close()
+        cache?.let { c ->
+            runCatching { c.close(); tmp!!.renameTo(cacheWav!!) }
+            cache = null
+        }
+    }
+
+    /** Annullamento o errore: niente file a metà. */
+    fun abort() {
+        runCatching { w.close() }
+        runCatching { cache?.close() }
+        cache = null
+        tmp?.delete()
+    }
 }
 
 /** Nome italiano di uno stem a partire da quello dei modelli. */

@@ -372,9 +372,20 @@ fun MixerScreen(vm: AppViewModel, projectId: String, modifier: Modifier, onBack:
         runCatching {
             withContext(Dispatchers.IO) {
                 val u = project.stems.map { vm.repo.fileUri(projectId, it.file) ?: error("manca ${it.file}") }
-                val w = u.mapIndexed { i, uri ->
-                    com.mlapps.mlstems.engine.StemCache.wavFor(ctx, projectId, uri, project.stems[i].file) { prep = (i + it) / u.size }
+                val t0 = System.currentTimeMillis()
+                val part = FloatArray(u.size)
+                // più stem insieme: la decodifica di ognuno è indipendente
+                val w = kotlinx.coroutines.coroutineScope {
+                    u.mapIndexed { i, uri ->
+                        kotlinx.coroutines.async(Dispatchers.IO) {
+                            com.mlapps.mlstems.engine.StemCache.wavFor(ctx, projectId, uri, project.stems[i].file) { f ->
+                                part[i] = f; prep = part.sum() / u.size
+                            }
+                        }
+                    }.map { it.await() }
                 }
+                val ms = System.currentTimeMillis() - t0
+                if (ms > 1500) com.mlapps.mlstems.engine.ProcessingLog.add(ctx, "Preparazione mixer: ${u.size} stem in $ms ms")
                 uris = u; w
             }
         }.onSuccess { wavs = it }.onFailure { failed = true }

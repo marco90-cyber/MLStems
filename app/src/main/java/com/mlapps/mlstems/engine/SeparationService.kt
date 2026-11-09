@@ -119,7 +119,10 @@ class SeparationService : Service() {
             val fmt = Settings.storeFormat(this)
             ProcessingLog.add(this, "Stem salvati in ${fmt.label}")
             val docs = labels.map { repo.newFile(folder, "$it.${fmt.ext}", fmt.mime) }
-            val writers = docs.map { StemWriter(contentResolver.openOutputStream(it.uri)!!, audio.frames, fmt) }
+            val cacheDir = java.io.File(cacheDir, "stems/${folder.name}")
+            val writers = docs.mapIndexed { i, d ->
+                StemWriter(contentResolver.openOutputStream(d.uri)!!, audio.frames, fmt, java.io.File(cacheDir, "${labels[i]}.wav"))
+            }
             try {
                 val sink = object : StemSink {
                     override fun write(stem: Int, left: FloatArray, right: FloatArray, count: Int) =
@@ -134,7 +137,8 @@ class SeparationService : Service() {
                     }
                 }
             } catch (e: Throwable) {
-                writers.forEach { runCatching { it.close() } }
+                writers.forEach { it.abort() }
+                cacheDir.deleteRecursively()
                 repo.deleteFolder(folder)
                 throw e
             }
