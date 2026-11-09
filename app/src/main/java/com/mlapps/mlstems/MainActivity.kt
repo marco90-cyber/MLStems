@@ -50,29 +50,7 @@ sealed interface Screen {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        takeAudio(intent)
         setContent { MLTheme { App() } }
-    }
-
-    override fun onNewIntent(intent: android.content.Intent) {
-        super.onNewIntent(intent)
-        takeAudio(intent)
-    }
-
-    /** "Apri con MLStems" o "Condividi" da un'altra app: apre la schermata del nuovo brano. */
-    private fun takeAudio(i: android.content.Intent?) {
-        val uri: Uri? = when (i?.action) {
-            android.content.Intent.ACTION_VIEW -> i.data
-            android.content.Intent.ACTION_SEND ->
-                if (Build.VERSION.SDK_INT >= 33) i.getParcelableExtra(android.content.Intent.EXTRA_STREAM, Uri::class.java)
-                else @Suppress("DEPRECATION") i.getParcelableExtra(android.content.Intent.EXTRA_STREAM)
-            else -> null
-        }
-        if (uri != null) incoming.value = uri
-    }
-
-    companion object {
-        val incoming = mutableStateOf<Uri?>(null)
     }
 }
 
@@ -89,10 +67,6 @@ fun App(vm: AppViewModel = viewModel()) {
     LaunchedEffect(Unit) {   // riaprendo l'app durante un'elaborazione, torna alla schermata di avanzamento
         vm.refreshProjects()
         if (SeparationState.status.value is SeparationStatus.Running) screen = Screen.Processing
-    }
-    val incoming = MainActivity.incoming.value
-    LaunchedEffect(incoming) {
-        if (incoming != null) { screen = Screen.NewTrack(incoming); MainActivity.incoming.value = null }
     }
     LaunchedEffect(message) {
         message?.let { snackbar.showSnackbar(it); vm.message.value = null }
