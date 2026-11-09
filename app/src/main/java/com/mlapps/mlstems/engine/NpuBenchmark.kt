@@ -62,7 +62,7 @@ object NpuBenchmark {
         val cpu = try { time(ctx, model, null, runs).also { onLine("CPU: ${it.avgMs} ms per blocco (caricamento ${it.loadMs} ms)") } }
         catch (e: Throwable) { onLine("CPU: errore ${e.message}"); return }
         var best: String? = null
-        var bestMs = cpu.avgMs
+        var bestMs = (cpu.avgMs * 0.8).toLong()   // serve almeno ×1,25 per scegliere l'acceleratore
         for (v in Accel.variants) {
             try {
                 val r = time(ctx, model, v, runs)
